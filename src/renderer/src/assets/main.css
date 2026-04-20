@@ -1,0 +1,20 @@
+@import 'tailwindcss';
+@import './base.css';
+
+@media (min-width: 1280px) {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+}
+
+body {
+  margin: 0;
+}
+
+@media (min-width: 1280px) {
+  body {
+    overflow: hidden;
+  }
+}

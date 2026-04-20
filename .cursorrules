@@ -1,0 +1,88 @@
+# Intel Board - Cursor Instructions
+
+## Quick Start
+
+This is a RAG-grounded AI intelligence dashboard built with Electron + React.
+
+### Architecture
+- **Frontend:** React 19 + TypeScript + Vite (in Electron)
+- **Map:** Mapbox GL JS for geospatial visualization
+- **Database:** SQLite (structured data) + ChromaDB (vector search for RAG)
+- **AI:** Ollama (local AND cloud models, unified API)
+- **Styling:** TailwindCSS
+
+### Key Documents
+- `PRD.md` - Product requirements, features, and user stories
+- `TDD.md` - Technical architecture, database schema, and RAG pipeline design
+- `README.md` - How to run the app, env vars, current vs planned layout
+
+### Development Rules
+
+1. **RAG-first:** All AI outputs must be grounded in retrieved source material. No hallucinations.
+2. **Local-first:** App should work offline with local LLM (Ollama).
+3. **Source transparency:** Every AI claim must cite its source with timestamp and confidence.
+4. **TypeScript strict mode:** No `any` types unless absolutely necessary.
+5. **Component structure:** One component per file, co-locate hooks and stores.
+6. **Ollama unified API:** All models (local and cloud) use the same `http://localhost:11434/api/chat` endpoint. No vendor lock-in.
+
+### AI Model Configuration
+
+**Embedding Model (always local, not user-selectable):**
+- `nomic-embed-text` via Ollama (274 MB, always runs locally)
+
+**Chat Model (user selects in Settings dropdown):**
+- **Local models:** Any model the user has pulled via `ollama pull` (e.g., `qwen2.5:3b`)
+- **Cloud models:** Ollama cloud models with `-cloud` suffix (e.g., `gpt-oss:120b-cloud`, `llama4:120b-cloud`)
+- Cloud models run on Ollama's infrastructure, free, no API key beyond a free Ollama account
+- **Same API endpoint** for both local and cloud: `http://localhost:11434/api/chat`
+- **Fallback:** If cloud model fails (no internet), fall back to local model
+- Ollama handles routing automatically based on model name
+
+**Settings page must include:**
+- Model selector dropdown (auto-populated from `ollama list`)
+- Option to manually enter model name
+- Warning about privacy when using cloud models (data leaves machine)
+- Fallback toggle (enable/disable cloud fallback when offline)
+
+### Data Flow
+
+```
+External APIs -> Ingestion Service -> SQLite + ChromaDB -> RAG Pipeline -> LLM -> UI
+```
+
+### Mapbox Setup
+
+You'll need a Mapbox access token. Get one free at https://mapbox.com (50K loads/month free).
+Store in `.env` as `VITE_MAPBOX_TOKEN`.
+
+### LLM Setup
+
+Install Ollama and pull the embedding model:
+```bash
+ollama pull nomic-embed-text
+ollama pull qwen2.5:3b  # or any preferred local model
+# Cloud models don't need pulling - just select them in settings
+```
+
+### Build Order (Recommended)
+
+1. ~~Electron + React skeleton with Vite~~ **Done**
+2. ~~Basic map view with Mapbox~~ **Done**
+3. SQLite database setup
+4. News API ingestion pipeline
+5. ChromaDB vector store setup
+6. RAG pipeline (embed -> store -> retrieve -> generate)
+7. Intelligence feed UI
+8. ADS-B integration
+9. AIS integration
+10. Anomaly detection engine
+11. Predictive models
+12. Conversational AI interface
+13. AI model settings page (local/cloud model selector)
+
+### Styling Notes
+
+- Dark theme by default (intelligence dashboard aesthetic)
+- Color coding: ALERT (red), WATCH (yellow), CONTEXT (blue)
+- Map should be the hero element (60%+ of screen real estate)
+- Feed scrolls on the right, AI chat at the bottom

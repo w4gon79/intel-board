@@ -1,0 +1,18 @@
+node_modules
+dist
+out
+.DS_Store
+.eslintcache
+*.log*
+.env
+.env.local
+.env.*.local
+*.db
+*.sqlite
+*.sqlite3
+chroma_data/
+*.db-wal
+# Database files
+data/
+intel-board/data/chroma/
+
