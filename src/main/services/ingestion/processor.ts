@@ -9,9 +9,7 @@ import type { InsertArticle, Article, IntelTier } from '../../../shared/types'
 import type { RawArticle, IngestionResult } from './news'
 import { insertArticle, getArticleCount, getArticles, insertIntelItem, getRecentIntelItems, deleteIntelItem, getIntelItemCount } from '../storage/dbService'
 import { embedAndStore } from '../storage/vectordb'
-import { config } from '../../utils/config'
 import { withWorldContext } from '../../utils/worldContext'
-import { getDefaultModel } from '../rag/llm'
 import { franc } from 'franc'
 
 // ── Region detection ──
@@ -177,34 +175,23 @@ async function translateIfNeeded(text: string): Promise<string> {
 
   // Non-English detected, translate via LLM
   try {
-    const model = getDefaultModel()
-    const baseUrl = config.ollamaBaseUrl
+    const { chat } = await import('../rag/llm')
 
-    const response = await fetch(`${baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content: withWorldContext('You are a translator. Translate the following text to English. If it is already in English, return it unchanged. Output ONLY the translated text, nothing else. No explanations, no quotes.')
-          },
-          {
-            role: 'user',
-            content: text
-          }
-        ],
-        stream: false,
-        options: {
-          temperature: 0.1
+    const result = await chat(
+      [
+        {
+          role: 'system',
+          content: withWorldContext('You are a translator. Translate the following text to English. If it is already in English, return it unchanged. Output ONLY the translated text, nothing else. No explanations, no quotes.')
+        },
+        {
+          role: 'user',
+          content: text
         }
-      }),
-      signal: AbortSignal.timeout(10000)
-    })
+      ],
+      { temperature: 0.1, maxTokens: 2048 }
+    )
 
-    const data = await response.json() as { message?: { content?: string } }
-    const translated = data.message?.content?.trim()
+    const translated = result.text?.trim()
 
     // Sanity check: translation shouldn't be empty or wildly different in length
     if (translated && translated.length > text.length * 0.3) {

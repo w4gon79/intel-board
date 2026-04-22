@@ -8,8 +8,8 @@
  */
 
 import https from 'https'
+import { chromium } from 'playwright'
 import { getDatabase } from '../storage/database'
-import { loadSettings } from '../../ipc/settings.handlers'
 
 // ── Operating area → approximate coordinates ─────────────────
 
@@ -119,14 +119,21 @@ function fetchUrl(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
       headers: {
-        'User-Agent': 'IntelBoard/1.0 (Intel Dashboard)',
-        'Accept': 'text/html'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9'
       },
       timeout: 30000
     }, (res) => {
       // Follow redirects
       if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         fetchUrl(res.headers.location).then(resolve).catch(reject)
+        return
+      }
+      if (res.statusCode && res.statusCode === 403) {
+        // Bot protection detected, fall back to headless browser
+        console.log('[CSG-Scraper] HTTP 403 detected, falling back to headless browser')
+        fetchUrlWithBrowser(url).then(resolve).catch(reject)
         return
       }
       if (res.statusCode && res.statusCode >= 400) {
@@ -141,6 +148,41 @@ function fetchUrl(url: string): Promise<string> {
     req.on('error', reject)
     req.on('timeout', () => { req.destroy(); reject(new Error('Request timeout')) })
   })
+}
+
+/** Fetch a URL using headless browser (bypasses Cloudflare/bot protection) */
+async function fetchUrlWithBrowser(url: string): Promise<string> {
+  console.log(`[CSG-Scraper] Fetching with headless browser: ${url}`)
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage()
+    // Set a realistic user agent
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-US,en;q=0.9'
+    })
+    
+    const response = await page.goto(url, { 
+      waitUntil: 'domcontentloaded',
+      timeout: 30000 
+    })
+    
+    if (!response || response.status() >= 400) {
+      throw new Error(`HTTP ${response?.status() || 'no response'} for ${url}`)
+    }
+    
+    // Wait for article content to load
+    await page.waitForSelector('article, .entry-content, .post-content', { timeout: 10000 }).catch(() => {
+      // Content might already be loaded, continue anyway
+    })
+    
+    // Small delay for any lazy-loaded content
+    await page.waitForTimeout(1000)
+    
+    const html = await page.content()
+    return html
+  } finally {
+    await browser.close()
+  }
 }
 
 // ── HTML parsing helpers (no cheerio dependency) ─────────────
@@ -539,10 +581,6 @@ interface AIGroup {
  * structured carrier group data. Falls back gracefully on any error.
  */
 async function parseFleetTrackerWithAI(articleText: string): Promise<ParsedGroup[]> {
-  const settings = loadSettings()
-  const model = settings.ai?.chatModel || 'qwen2.5:3b'
-  const baseUrl = settings.ai?.baseUrl || 'http://localhost:11434'
-
   const prompt = `You are a naval intelligence parser. Extract ALL naval formations, carrier strike groups, amphibious ready groups, independently deployed task groups, and significant individual warships from this USNI Fleet Tracker article.
 
 You MUST include:
@@ -626,29 +664,23 @@ Rules:
 - The first vessel in each group's vessel array MUST be the flagship (carrier or amphibious assault ship)
 - Always include hull_number for every vessel
 - Do NOT include lat/lon coordinates. The system resolves coordinates from operating_area automatically.
+- IMPORTANT: Return ONLY valid JSON. No markdown code fences, no explanation.
 
 Article text:
 ${articleText.substring(0, 16000)}`
 
-  const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-      stream: false,
-      options: { temperature: 0.1 },
-      format: 'json'
-    }),
-    signal: AbortSignal.timeout(120_000)
-  })
+  const { chat } = await import('../rag/llm')
 
-  if (!response.ok) {
-    throw new Error(`LLM returned HTTP ${response.status}`)
+  const result = await chat(
+    [{ role: 'user', content: prompt }],
+    { temperature: 0.1, maxTokens: 8192 }
+  )
+
+  if (!result.text || result.text.trim().length === 0) {
+    throw new Error('CSG scraper: LLM returned empty response')
   }
 
-  const data = await response.json() as { message?: { content?: string } }
-  const content = data.message?.content || '[]'
+  let content = result.text.trim()
 
   // Parse the JSON response
   let aiGroups: AIGroup[]

@@ -23,7 +23,6 @@ import {
 } from '../storage/dbService'
 import { vectorSearch } from '../storage/vectordb'
 import { withWorldContext } from '../../utils/worldContext'
-import { loadSettings } from '../../ipc/settings.handlers'
 import { getCalibrationContext } from './predictionReviewer'
 import { getAllCalibrations } from '../storage/dbService'
 
@@ -206,27 +205,24 @@ interface OllamaChatMessage {
 /**
  * Call Ollama chat API to generate a prediction.
  * Uses streaming=false for a single complete response.
+ * Returns the generated text and the actual model that was used.
  */
-/** Read the currently configured chat model from settings (live — no restart needed). */
-export function getConfiguredModel(): string {
-  try {
-    return loadSettings().ai.chatModel || 'qwen2.5:3b'
-  } catch {
-    return 'qwen2.5:3b'
-  }
+interface CallOllamaResult {
+  text: string
+  model: string
+  fellBack: boolean
 }
 
-async function callOllama(messages: OllamaChatMessage[], model?: string): Promise<string> {
+async function callOllama(messages: OllamaChatMessage[]): Promise<CallOllamaResult> {
   const { chat } = await import('../rag/llm')
-  const modelName = model || getConfiguredModel()
-  console.log(`[PREDICTOR] Calling model: ${modelName}`)
 
   const result = await chat(
     messages.map(m => ({ role: m.role, content: m.content })),
     { temperature: 0.1, maxTokens: 2048 }
   )
 
-  return result.text ?? ''
+  console.log(`[PREDICTOR] Used model: ${result.model}${result.fellBack ? ' (fallback)' : ''}`)
+  return { text: result.text ?? '', model: result.model, fellBack: result.fellBack }
 }
 
 // ─── Response parsing ──────────────────────────────────────────────────────
@@ -430,8 +426,11 @@ export async function generatePrediction(input: PredictionInput): Promise<Predic
 
   // Call LLM
   let rawResponse: string
+  let actualModel: string
   try {
-    rawResponse = await callOllama(messages)
+    const ollamaResult = await callOllama(messages)
+    rawResponse = ollamaResult.text
+    actualModel = ollamaResult.model
   } catch (err) {
     console.error('[PREDICTOR] LLM call failed:', err)
     return null
@@ -481,7 +480,7 @@ export async function generatePrediction(input: PredictionInput): Promise<Predic
     confidence: confidenceNormalized,
     expectedBy: expectedBy.toISOString(),
     sources,
-    modelUsed: getConfiguredModel(),
+    modelUsed: actualModel,
     category: input.category
   }
 
