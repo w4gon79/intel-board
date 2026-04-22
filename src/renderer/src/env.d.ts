@@ -99,6 +99,7 @@ interface Window {
       save: (settings: AppSettings) => Promise<{ success: boolean; error?: string }>
       listModels: (baseUrl?: string) => Promise<Array<{ name: string; size: string; modified_at: string }>>
       testConnection: (baseUrl?: string) => Promise<{ ok: boolean; error?: string }>
+      testOpenaiConnection: (baseUrl: string, apiKey: string) => Promise<{ ok: boolean; error?: string }>
     }
 
     // ── ADS-B ──
@@ -262,6 +263,11 @@ declare global {
       baseUrl: string
       chatModel: string
       temperature: number
+      cloudProvider: 'ollama' | 'openai-compatible'
+      cloudOpenaiBaseUrl: string
+      cloudOpenaiApiKey: string
+      cloudOpenaiModel: string
+      fallbackToLocal: boolean
     }
     remoteServer: {
       enabled: boolean

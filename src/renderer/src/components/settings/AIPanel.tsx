@@ -24,6 +24,8 @@ export function AIPanel({ open, onClose }: AIPanelProps): React.JSX.Element {
   const [testing, setTesting] = useState(false)
   const [saving, setSaving] = useState(false)
   const [customModel, setCustomModel] = useState('')
+  const [cloudStatus, setCloudStatus] = useState<'unknown' | 'ok' | 'error'>('unknown')
+  const [cloudError, setCloudError] = useState('')
 
   // Load settings and models on open
   useEffect(() => {
@@ -177,6 +179,123 @@ export function AIPanel({ open, onClose }: AIPanelProps): React.JSX.Element {
                   placeholder="http://localhost:11434"
                 />
               </div>
+            </div>
+          </Section>
+
+          {/* ── Cloud Provider ── */}
+          <Section title="Cloud Provider">
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-[10px] uppercase tracking-wider text-zinc-500">
+                  Provider Type
+                </label>
+                <select
+                  value={settings.ai.cloudProvider || 'ollama'}
+                  onChange={(e) =>
+                    updateAI({ cloudProvider: e.target.value as 'ollama' | 'openai-compatible' })
+                  }
+                  className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="ollama">Ollama (local + cloud models)</option>
+                  <option value="openai-compatible">OpenAI-Compatible (ZAI, OpenAI, Groq, etc.)</option>
+                </select>
+              </div>
+
+              {settings.ai.cloudProvider === 'openai-compatible' && (
+                <>
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wider text-zinc-500">
+                      Base URL
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.ai.cloudOpenaiBaseUrl || ''}
+                      onChange={(e) => updateAI({ cloudOpenaiBaseUrl: e.target.value })}
+                      className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-none"
+                      placeholder="https://api.z.ai/v1"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wider text-zinc-500">
+                      API Key
+                    </label>
+                    <input
+                      type="password"
+                      value={settings.ai.cloudOpenaiApiKey || ''}
+                      onChange={(e) => updateAI({ cloudOpenaiApiKey: e.target.value })}
+                      className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-none"
+                      placeholder="sk-..."
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] uppercase tracking-wider text-zinc-500">
+                      Model Name
+                    </label>
+                    <input
+                      type="text"
+                      value={settings.ai.cloudOpenaiModel || ''}
+                      onChange={(e) => updateAI({ cloudOpenaiModel: e.target.value })}
+                      className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs text-zinc-200 focus:border-indigo-500 focus:outline-none"
+                      placeholder="glm-5"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 rounded-md border border-zinc-800 bg-zinc-900/50 p-3">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!settings.ai.cloudOpenaiBaseUrl || !settings.ai.cloudOpenaiApiKey) return
+                        setTesting(true)
+                        setCloudStatus('unknown')
+                        const result = await window.api.settings.testOpenaiConnection(
+                          settings.ai.cloudOpenaiBaseUrl,
+                          settings.ai.cloudOpenaiApiKey
+                        )
+                        setCloudStatus(result.ok ? 'ok' : 'error')
+                        setCloudError(result.error || '')
+                        setTesting(false)
+                      }}
+                      disabled={testing}
+                      className="rounded-md border border-zinc-700 bg-zinc-800 px-3 py-1 text-[10px] font-medium text-zinc-300 transition-colors hover:bg-zinc-700 disabled:opacity-50"
+                    >
+                      {testing ? 'Testing...' : 'Test Connection'}
+                    </button>
+                    {cloudStatus === 'ok' && (
+                      <span className="text-[10px] text-emerald-400">Connected</span>
+                    )}
+                    {cloudStatus === 'error' && (
+                      <span className="text-[10px] text-red-400">Error: {cloudError}</span>
+                    )}
+                  </div>
+                  <div className="rounded-md border border-amber-900/50 bg-amber-950/30 px-3 py-2">
+                    <p className="text-[11px] text-amber-400">
+                      ⚠️ <strong>Privacy Notice:</strong> OpenAI-compatible providers send your
+                      prompts to a third-party API. Data leaves your machine.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={settings.ai.fallbackToLocal ?? true}
+                      onChange={(e) => updateAI({ fallbackToLocal: e.target.checked })}
+                      className="accent-indigo-500"
+                    />
+                    <label className="text-[10px] text-zinc-400">
+                      Fall back to local Ollama if cloud fails
+                    </label>
+                  </div>
+                </>
+              )}
+
+              {settings.ai.cloudProvider === 'ollama' && (
+                <div className="rounded-md border border-zinc-800 bg-zinc-900/30 px-3 py-2">
+                  <p className="text-[10px] text-zinc-500">
+                    Cloud models use the <code className="text-zinc-400">-cloud</code> suffix in the
+                    chat model dropdown (e.g.{' '}
+                    <code className="text-zinc-400">deepseek-v3.1:671b-cloud</code>). Select one
+                    from the Chat Model section above.
+                  </p>
+                </div>
+              )}
             </div>
           </Section>
 

@@ -1,9 +1,11 @@
 /**
- * LLM Chat Service — generates responses via Ollama's unified chat API.
+ * LLM Chat Service — generates responses via Ollama or OpenAI-compatible APIs.
  *
- * Supports both local and cloud models through the same endpoint.
- * Cloud models use the `-cloud` suffix (e.g., `gpt-oss:120b-cloud`).
- * Falls back to local model if cloud fails.
+ * Supports:
+ * - Local Ollama models (default)
+ * - Ollama cloud models (`-cloud` suffix)
+ * - OpenAI-compatible providers (ZAI, OpenAI, Groq, etc.)
+ * Falls back to local Ollama model if cloud fails.
  */
 
 import { config } from '../../utils/config'
@@ -108,31 +110,78 @@ export async function listModels(): Promise<string[]> {
 // ── Chat API ──
 
 /**
- * Generate a chat completion via Ollama.
+ * Generate a chat completion.
  *
- * Tries the requested model first. If it's a cloud model and fails,
- * falls back to the default local model.
+ * Routing logic:
+ * 1. If the model name ends with `-cloud`, always use Ollama (cloud routing).
+ * 2. If the cloud provider is `openai-compatible` and fully configured, try it first.
+ *    If it fails and fallbackToLocal is true, fall through to Ollama.
+ * 3. Default: Ollama (local model with fallback to FALLBACK_MODEL).
  */
 export async function chat(
   messages: ChatMessage[],
   options: LLMOptions = {}
 ): Promise<LLMResponse> {
-  const configuredModel = getConfiguredModel()
-  const {
-    model = configuredModel,
-    temperature = DEFAULT_TEMPERATURE,
-    maxTokens = DEFAULT_MAX_TOKENS
-  } = options
-
+  const settings = loadSettings()
+  const configuredModel = options.model || getConfiguredModel()
+  const temperature = options.temperature ?? settings.ai.temperature ?? DEFAULT_TEMPERATURE
+  const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS
   const startTime = Date.now()
 
-  try {
-    const response = await callOllamaChat(messages, {
-      model,
-      temperature,
-      maxTokens
-    })
+  // If user selected a cloud model with -cloud suffix, always use Ollama
+  if (configuredModel.endsWith('-cloud')) {
+    return chatViaOllama(messages, configuredModel, temperature, maxTokens, startTime)
+  }
 
+  // If cloud provider is OpenAI-compatible and configured, try it first
+  if (
+    settings.ai.cloudProvider === 'openai-compatible' &&
+    settings.ai.cloudOpenaiBaseUrl &&
+    settings.ai.cloudOpenaiApiKey &&
+    settings.ai.cloudOpenaiModel
+  ) {
+    try {
+      const response = await callOpenaiChat(messages, {
+        baseUrl: settings.ai.cloudOpenaiBaseUrl,
+        apiKey: settings.ai.cloudOpenaiApiKey,
+        model: settings.ai.cloudOpenaiModel,
+        temperature,
+        maxTokens
+      })
+      return {
+        text: response.message.content,
+        model: response.model,
+        fellBack: false,
+        durationMs: Date.now() - startTime
+      }
+    } catch (cloudErr) {
+      console.warn(
+        `[llm] OpenAI-compatible provider failed:`,
+        cloudErr instanceof Error ? cloudErr.message : String(cloudErr)
+      )
+      // Fall through to Ollama if fallbackToLocal is true
+      if (!settings.ai.fallbackToLocal) {
+        throw cloudErr
+      }
+    }
+  }
+
+  // Default: Ollama
+  return chatViaOllama(messages, configuredModel, temperature, maxTokens, startTime)
+}
+
+/**
+ * Ollama chat with automatic fallback to FALLBACK_MODEL.
+ */
+async function chatViaOllama(
+  messages: ChatMessage[],
+  model: string,
+  temperature: number,
+  maxTokens: number,
+  startTime: number
+): Promise<LLMResponse> {
+  try {
+    const response = await callOllamaChat(messages, { model, temperature, maxTokens })
     return {
       text: response.message.content,
       model: response.model,
@@ -140,20 +189,17 @@ export async function chat(
       durationMs: Date.now() - startTime
     }
   } catch (err) {
-    // If cloud model fails, try fallback to local
     if (model !== FALLBACK_MODEL) {
       console.warn(
         `[llm] Model '${model}' failed, falling back to '${FALLBACK_MODEL}':`,
         err instanceof Error ? err.message : String(err)
       )
-
       try {
         const fallbackResponse = await callOllamaChat(messages, {
           model: FALLBACK_MODEL,
           temperature,
           maxTokens
         })
-
         return {
           text: fallbackResponse.message.content,
           model: fallbackResponse.model,
@@ -162,13 +208,12 @@ export async function chat(
         }
       } catch (fallbackErr) {
         throw new Error(
-          `[llm] Both primary (${model}) and fallback (${FALLBACK_MODEL}) models failed. ` +
-          `Primary error: ${err instanceof Error ? err.message : String(err)}. ` +
-          `Fallback error: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`
+          `[llm] Both primary (${model}) and fallback (${FALLBACK_MODEL}) failed. ` +
+          `Primary: ${err instanceof Error ? err.message : String(err)}. ` +
+          `Fallback: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`
         )
       }
     }
-
     throw err
   }
 }
@@ -218,6 +263,62 @@ async function callOllamaChat(
 
   const data = (await response.json()) as OllamaChatResponse
   return data
+}
+
+/**
+ * Call OpenAI-compatible chat API (ZAI, OpenAI, Groq, etc.).
+ */
+async function callOpenaiChat(
+  messages: ChatMessage[],
+  options: { baseUrl: string; apiKey: string; model: string; temperature: number; maxTokens: number }
+): Promise<OllamaChatResponse> {
+  const url = `${options.baseUrl.replace(/\/$/, '')}/chat/completions`
+
+  let response: Response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${options.apiKey}`
+      },
+      body: JSON.stringify({
+        model: options.model,
+        messages,
+        temperature: options.temperature,
+        max_tokens: options.maxTokens,
+        stream: false
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    })
+  } catch (err) {
+    throw new Error(
+      `[llm] Failed to connect to ${options.baseUrl}. Error: ${err instanceof Error ? err.message : String(err)}`
+    )
+  }
+
+  if (!response.ok) {
+    let errorMsg = `HTTP ${response.status}`
+    try {
+      const errBody = (await response.json()) as { error?: { message?: string } }
+      errorMsg = errBody.error?.message || errorMsg
+    } catch {
+      // Use default
+    }
+    throw new Error(`[llm] OpenAI-compatible request failed: ${errorMsg}`)
+  }
+
+  const data = (await response.json()) as {
+    choices: Array<{ message: { role: string; content: string } }>
+    model: string
+    usage?: { prompt_tokens: number; completion_tokens: number }
+  }
+
+  return {
+    model: data.model || options.model,
+    message: data.choices?.[0]?.message || { role: 'assistant', content: '' },
+    done: true
+  }
 }
 
 /**

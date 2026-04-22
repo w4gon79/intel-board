@@ -41,6 +41,12 @@ export interface AppSettings {
     baseUrl: string
     chatModel: string
     temperature: number
+    // Cloud provider settings
+    cloudProvider: 'ollama' | 'openai-compatible'
+    cloudOpenaiBaseUrl: string
+    cloudOpenaiApiKey: string
+    cloudOpenaiModel: string
+    fallbackToLocal: boolean
   }
   // Remote Access (Phase 4I)
   remoteServer: {
@@ -84,7 +90,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   ai: {
     baseUrl: config.ollamaBaseUrl,
     chatModel: 'qwen2.5:3b',
-    temperature: 0.3
+    temperature: 0.3,
+    cloudProvider: 'ollama',
+    cloudOpenaiBaseUrl: '',
+    cloudOpenaiApiKey: '',
+    cloudOpenaiModel: '',
+    fallbackToLocal: true
   },
   remoteServer: {
     enabled: false,
@@ -237,6 +248,27 @@ export function registerSettingsHandlers(): void {
     const url = baseUrl ?? settings.ai.baseUrl
     return await testOllamaConnection(url)
   })
+
+  // Test OpenAI-compatible connection
+  ipcMain.handle(
+    'settings:testOpenaiConnection',
+    async (_event, baseUrl: string, apiKey: string) => {
+      try {
+        const url = `${baseUrl.replace(/\/$/, '')}/models`
+        const resp = await fetch(url, {
+          headers: { Authorization: `Bearer ${apiKey}` },
+          signal: AbortSignal.timeout(5000)
+        })
+        if (resp.ok) return { ok: true }
+        return { ok: false, error: `HTTP ${resp.status}` }
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : 'Connection failed'
+        }
+      }
+    }
+  )
 
   console.log('[IPC] Settings handlers registered')
 }

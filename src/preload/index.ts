@@ -104,7 +104,10 @@ const api = {
     /** List available Ollama models */
     listModels: (baseUrl?: string) => ipcRenderer.invoke('settings:listModels', baseUrl),
     /** Test Ollama connection */
-    testConnection: (baseUrl?: string) => ipcRenderer.invoke('settings:testConnection', baseUrl)
+    testConnection: (baseUrl?: string) => ipcRenderer.invoke('settings:testConnection', baseUrl),
+    /** Test OpenAI-compatible connection */
+    testOpenaiConnection: (baseUrl: string, apiKey: string) =>
+      ipcRenderer.invoke('settings:testOpenaiConnection', baseUrl, apiKey)
   },
 
   // ── ADS-B / Flight Tracking ──
