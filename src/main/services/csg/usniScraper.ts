@@ -150,16 +150,25 @@ function fetchUrl(url: string): Promise<string> {
   })
 }
 
-/** Fetch a URL using headless browser (bypasses Cloudflare/bot protection) */
+/** Fetch a URL using system Chrome (bypasses Cloudflare/bot protection) */
 async function fetchUrlWithBrowser(url: string): Promise<string> {
-  console.log(`[CSG-Scraper] Fetching with headless browser: ${url}`)
-  const browser = await chromium.launch({ headless: true })
+  console.log(`[CSG-Scraper] Fetching with system Chrome: ${url}`)
+  const browser = await chromium.launch({ 
+    headless: false,
+    channel: 'chrome',
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      '--window-position=-2400,-2400'
+    ]
+  })
   try {
     const page = await browser.newPage()
-    // Set a realistic user agent
-    await page.setExtraHTTPHeaders({
-      'Accept-Language': 'en-US,en;q=0.9'
+    
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => false })
     })
+    
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'en-US,en;q=0.9' })
     
     const response = await page.goto(url, { 
       waitUntil: 'domcontentloaded',
@@ -170,15 +179,22 @@ async function fetchUrlWithBrowser(url: string): Promise<string> {
       throw new Error(`HTTP ${response?.status() || 'no response'} for ${url}`)
     }
     
-    // Wait for article content to load
-    await page.waitForSelector('article, .entry-content, .post-content', { timeout: 10000 }).catch(() => {
-      // Content might already be loaded, continue anyway
-    })
+    // Wait for Cloudflare challenge to resolve and content to load
+    await page.waitForTimeout(8000)
     
-    // Small delay for any lazy-loaded content
-    await page.waitForTimeout(1000)
+    // Verify we got past Cloudflare
+    const title = await page.title()
+    if (title.includes('Just a moment') || title.includes('Checking')) {
+      // Still on challenge page, wait more
+      console.log('[CSG-Scraper] Cloudflare challenge detected, waiting...')
+      await page.waitForTimeout(10000)
+    }
+    
+    // Wait for article content
+    await page.waitForSelector('article, .entry-content, .post-content', { timeout: 10000 }).catch(() => {})
     
     const html = await page.content()
+    console.log(`[CSG-Scraper] Successfully fetched ${html.length} bytes`)
     return html
   } finally {
     await browser.close()
