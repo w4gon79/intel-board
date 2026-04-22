@@ -8,8 +8,6 @@
 import { getDatabase } from './storage/database'
 import { insertIntelItem } from './storage/dbService'
 import { getCSGContextString } from './csg/csgService'
-import { getDefaultModel } from './rag/llm'
-import { config } from '../utils/config'
 import { withWorldContext } from '../utils/worldContext'
 import { CHOKE_POINTS } from './ais/aisService'
 import { getEconomicContextString } from './economicService'
@@ -414,27 +412,20 @@ If nothing significant is happening, return: {"analyses": []}`
 }
 
 async function callLLMForAnalysis(prompt: string): Promise<SenseMakingResponse> {
-  const model = getDefaultModel()
-  const response = await fetch(`${config.ollamaBaseUrl}/api/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      prompt,
-      format: 'json',
-      stream: false,
-      options: { temperature: 0.2 }
-    }),
-    signal: AbortSignal.timeout(120_000)
-  })
+  // Route through the LLM chat service to use cloud when configured
+  const { chat } = await import('./rag/llm')
 
-  if (!response.ok) {
-    throw new Error(`[SenseMaking] LLM request failed: HTTP ${response.status}`)
+  const result = await chat(
+    [{ role: 'user', content: prompt }],
+    { temperature: 0.2, maxTokens: 8192 }
+  )
+
+  if (!result.text || result.text.trim().length === 0) {
+    throw new Error('[SenseMaking] LLM returned empty response')
   }
 
-  const data = await response.json() as { response: string }
-  // Strip markdown code fences that some LLMs wrap around JSON even with format: 'json'
-  let raw = data.response.trim()
+  // Strip markdown code fences that some LLMs wrap around JSON
+  let raw = result.text.trim()
   if (raw.startsWith('```')) {
     raw = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '')
   }

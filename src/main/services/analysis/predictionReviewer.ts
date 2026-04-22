@@ -21,7 +21,6 @@ import {
 import { vectorSearch } from '../storage/vectordb'
 import { fetchNewsApiEverything } from '../ingestion/news'
 import { loadSettings } from '../../ipc/settings.handlers'
-import { config } from '../../utils/config'
 import { withWorldContext } from '../../utils/worldContext'
 
 // ── Types ──
@@ -86,33 +85,14 @@ function extractRegionFromSources(sources: string[]): string {
 // ── LLM Call Helper ──
 
 async function callOllama(messages: { role: string; content: string }[]): Promise<string> {
-  const model = getConfiguredModel()
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 120_000) // 2 min timeout for reviews
+  const { chat } = await import('../rag/llm')
 
-  try {
-    const resp = await fetch(`${config.ollamaBaseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: false,
-        options: { temperature: 0.3 }
-      }),
-      signal: controller.signal
-    })
+  const result = await chat(
+    messages.map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content })),
+    { temperature: 0.3, maxTokens: 2048 }
+  )
 
-    if (!resp.ok) {
-      const text = await resp.text()
-      throw new Error(`Ollama HTTP ${resp.status}: ${text}`)
-    }
-
-    const data = (await resp.json()) as { message?: { content?: string } }
-    return data.message?.content?.trim() ?? ''
-  } finally {
-    clearTimeout(timeout)
-  }
+  return result.text ?? ''
 }
 
 // ── Step A: Extract Search Queries ──

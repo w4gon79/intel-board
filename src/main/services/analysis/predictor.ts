@@ -22,7 +22,6 @@ import {
   resolvePrediction
 } from '../storage/dbService'
 import { vectorSearch } from '../storage/vectordb'
-import { config } from '../../utils/config'
 import { withWorldContext } from '../../utils/worldContext'
 import { loadSettings } from '../../ipc/settings.handlers'
 import { getCalibrationContext } from './predictionReviewer'
@@ -68,7 +67,6 @@ export interface PredictionOutput {
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
-const OLLAMA_CHAT_URL = `${config.ollamaBaseUrl}/api/chat`
 const RAG_TOP_K = 10
 const MIN_CONFIDENCE = 10
 const MAX_CONFIDENCE = 80
@@ -204,11 +202,6 @@ interface OllamaChatMessage {
   content: string
 }
 
-interface OllamaChatResponse {
-  message: { content: string; role: string }
-  model: string
-  done: boolean
-}
 
 /**
  * Call Ollama chat API to generate a prediction.
@@ -224,32 +217,16 @@ export function getConfiguredModel(): string {
 }
 
 async function callOllama(messages: OllamaChatMessage[], model?: string): Promise<string> {
+  const { chat } = await import('../rag/llm')
   const modelName = model || getConfiguredModel()
+  console.log(`[PREDICTOR] Calling model: ${modelName}`)
 
-  console.log(`[PREDICTOR] Calling Ollama model: ${modelName}`)
+  const result = await chat(
+    messages.map(m => ({ role: m.role, content: m.content })),
+    { temperature: 0.1, maxTokens: 2048 }
+  )
 
-  const response = await fetch(OLLAMA_CHAT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: modelName,
-      messages,
-      stream: false,
-      options: {
-        temperature: 0.1, // Was 0.3 — predictions must be data-driven, not creative
-        top_p: 0.85,      // Was 0.9 — slightly narrower selection
-        num_predict: 768   // Was 1024 — shorter responses reduce fabrication space
-      }
-    })
-  })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(`Ollama API error (${response.status}): ${errorText}`)
-  }
-
-  const data = (await response.json()) as OllamaChatResponse
-  return data.message?.content ?? ''
+  return result.text ?? ''
 }
 
 // ─── Response parsing ──────────────────────────────────────────────────────
