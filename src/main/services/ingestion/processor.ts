@@ -188,7 +188,7 @@ async function translateIfNeeded(text: string): Promise<string> {
           content: text
         }
       ],
-      { temperature: 0.1, maxTokens: 2048 }
+        { temperature: 0.1 }
     )
 
     const translated = result.text?.trim()

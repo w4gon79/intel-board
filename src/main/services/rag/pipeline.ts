@@ -170,8 +170,7 @@ export async function executeRAG(request: RAGRequest): Promise<RAGResponse> {
   try {
     llmResponse = await chat(messages, {
       model: model || getDefaultModel(),
-      temperature: 0.3,
-      maxTokens: 2048
+      temperature: 0.3
     })
   } catch (err) {
     console.error('[rag] LLM generation failed:', err instanceof Error ? err.message : String(err))

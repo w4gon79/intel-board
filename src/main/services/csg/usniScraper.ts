@@ -689,7 +689,7 @@ ${articleText.substring(0, 16000)}`
 
   const result = await chat(
     [{ role: 'user', content: prompt }],
-    { temperature: 0.1, maxTokens: 8192 }
+    { temperature: 0.1, timeoutMs: 300_000 }
   )
 
   if (!result.text || result.text.trim().length === 0) {

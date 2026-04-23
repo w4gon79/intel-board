@@ -417,7 +417,7 @@ async function callLLMForAnalysis(prompt: string): Promise<SenseMakingResponse> 
 
   const result = await chat(
     [{ role: 'user', content: prompt }],
-    { temperature: 0.2, maxTokens: 8192 }
+    { temperature: 0.2 }
   )
 
   if (!result.text || result.text.trim().length === 0) {

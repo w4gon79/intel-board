@@ -89,7 +89,7 @@ async function callOllama(messages: { role: string; content: string }[]): Promis
 
   const result = await chat(
     messages.map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content })),
-    { temperature: 0.3, maxTokens: 2048 }
+    { temperature: 0.3 }
   )
 
   return result.text ?? ''

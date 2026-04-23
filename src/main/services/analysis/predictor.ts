@@ -218,7 +218,7 @@ async function callOllama(messages: OllamaChatMessage[]): Promise<CallOllamaResu
 
   const result = await chat(
     messages.map(m => ({ role: m.role, content: m.content })),
-    { temperature: 0.1, maxTokens: 2048 }
+    { temperature: 0.1 }
   )
 
   console.log(`[PREDICTOR] Used model: ${result.model}${result.fellBack ? ' (fallback)' : ''}`)

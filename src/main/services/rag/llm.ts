@@ -12,6 +12,11 @@ import { config } from '../../utils/config'
 import { loadSettings } from '../../ipc/settings.handlers'
 import type { ChatMessage } from '../../../shared/types'
 
+/** Strip reasoning/thinking tags from model output (glm-5, DeepSeek, etc.) */
+function stripThinking(text: string): string {
+  return text.replace(/<think[^>]*>[\s\S]*?<\/think>/gi, '').trim()
+}
+
 // ── Types ──
 
 export interface LLMOptions {
@@ -19,8 +24,10 @@ export interface LLMOptions {
   model?: string
   /** Temperature (0-1, lower = more focused) */
   temperature?: number
-  /** Max tokens to generate */
+  /** Max tokens to generate (undefined = no limit, let the model decide) */
   maxTokens?: number
+  /** Request timeout in milliseconds (default: 180000) */
+  timeoutMs?: number
   /** Whether to stream the response */
   stream?: boolean
 }
@@ -50,8 +57,7 @@ interface OllamaChatResponse {
 const FALLBACK_MODEL = 'qwen2.5:3b'
 const OLLAMA_CHAT_ENDPOINT = `${config.ollamaBaseUrl}/api/chat`
 const DEFAULT_TEMPERATURE = 0.3
-const DEFAULT_MAX_TOKENS = 2048
-const REQUEST_TIMEOUT_MS = 120_000 // 2 min
+const REQUEST_TIMEOUT_MS = 180_000 // 3 min
 
 // ── Model Registry ──
 
@@ -125,7 +131,8 @@ export async function chat(
   const settings = loadSettings()
   const configuredModel = options.model || getConfiguredModel()
   const temperature = options.temperature ?? settings.ai.temperature ?? DEFAULT_TEMPERATURE
-  const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS
+  const maxTokens = options.maxTokens
+  const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS
   const startTime = Date.now()
 
   // If user selected a cloud model with -cloud suffix, always use Ollama
@@ -146,7 +153,8 @@ export async function chat(
         apiKey: settings.ai.cloudOpenaiApiKey,
         model: settings.ai.cloudOpenaiModel,
         temperature,
-        maxTokens
+        maxTokens,
+        timeout: timeoutMs
       })
       return {
         text: response.message.content,
@@ -177,7 +185,7 @@ async function chatViaOllama(
   messages: ChatMessage[],
   model: string,
   temperature: number,
-  maxTokens: number,
+  maxTokens: number | undefined,
   startTime: number
 ): Promise<LLMResponse> {
   try {
@@ -223,14 +231,14 @@ async function chatViaOllama(
  */
 async function callOllamaChat(
   messages: ChatMessage[],
-  options: { model: string; temperature: number; maxTokens: number }
+  options: { model: string; temperature: number; maxTokens?: number }
 ): Promise<OllamaChatResponse> {
   const body = JSON.stringify({
     model: options.model,
     messages,
     options: {
       temperature: options.temperature,
-      num_predict: options.maxTokens
+      ...(options.maxTokens ? { num_predict: options.maxTokens } : {})
     },
     stream: false
   })
@@ -262,7 +270,11 @@ async function callOllamaChat(
   }
 
   const data = (await response.json()) as OllamaChatResponse
-  return data
+  const rawMsg = data.message || { role: 'assistant', content: '' }
+  return {
+    ...data,
+    message: { role: rawMsg.role, content: stripThinking(rawMsg.content || '') }
+  }
 }
 
 /**
@@ -270,7 +282,7 @@ async function callOllamaChat(
  */
 async function callOpenaiChat(
   messages: ChatMessage[],
-  options: { baseUrl: string; apiKey: string; model: string; temperature: number; maxTokens: number }
+  options: { baseUrl: string; apiKey: string; model: string; temperature: number; maxTokens?: number; timeout: number }
 ): Promise<OllamaChatResponse> {
   const url = `${options.baseUrl.replace(/\/$/, '')}/chat/completions`
 
@@ -286,10 +298,10 @@ async function callOpenaiChat(
         model: options.model,
         messages,
         temperature: options.temperature,
-        max_tokens: options.maxTokens,
+        ...(options.maxTokens ? { max_tokens: options.maxTokens } : {}),
         stream: false
       }),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      signal: AbortSignal.timeout(options.timeout)
     })
   } catch (err) {
     throw new Error(
@@ -314,9 +326,10 @@ async function callOpenaiChat(
     usage?: { prompt_tokens: number; completion_tokens: number }
   }
 
+  const rawMsg = data.choices?.[0]?.message || { role: 'assistant', content: '' }
   return {
     model: data.model || options.model,
-    message: data.choices?.[0]?.message || { role: 'assistant', content: '' },
+    message: { role: rawMsg.role, content: stripThinking(rawMsg.content || '') },
     done: true
   }
 }
