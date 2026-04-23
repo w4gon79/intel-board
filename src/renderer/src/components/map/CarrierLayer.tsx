@@ -567,8 +567,9 @@ export function buildPopupHtml(
         ${rows}
       </table>
     `
-  } else if (props.vessel_types.length > 0) {
-    const typeList = props.vessel_types.join(', ')
+  } else if (props.vessel_types) {
+    const types = Array.isArray(props.vessel_types) ? props.vessel_types : JSON.parse(props.vessel_types as unknown as string)
+    const typeList = types.join(', ')
     vesselRows = `<div style="font-size:10px;color:#888;margin-top:4px;">${typeList}</div>`
   }
 

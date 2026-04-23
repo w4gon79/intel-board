@@ -597,15 +597,19 @@ interface AIGroup {
  * structured carrier group data. Falls back gracefully on any error.
  */
 async function parseFleetTrackerWithAI(articleText: string): Promise<ParsedGroup[]> {
-  const prompt = `You are a naval intelligence parser. Extract ALL naval formations, carrier strike groups, amphibious ready groups, independently deployed task groups, and significant individual warships from this USNI Fleet Tracker article.
+  const prompt = `You are a naval intelligence parser. Extract carrier strike groups, amphibious ready groups, and aircraft carrier/amphibious assault ship deployments from this USNI Fleet Tracker article.
 
 You MUST include:
 - Every Carrier Strike Group (CSG) mentioned
 - Every Amphibious Ready Group (ARG) mentioned
 - Every aircraft carrier or amphibious assault ship mentioned, even if in-port or transiting
-- Every independently deployed destroyer/cruiser group mentioned
-- Every submarine deployment mentioned
-- Ships described as "departed", "transiting", "in-port", "operating in", or "pulled into"
+
+You MUST NOT create top-level entries for:
+- Individual destroyers, cruisers, or frigates operating as part of a known CSG/ARG
+- Individual submarines
+- Individual LCS or patrol craft
+
+These vessels should ONLY appear as entries in the "vessels" array of their parent CSG/ARG.
 
 Return ONLY a JSON array with this exact structure, no other text:
 [
@@ -670,7 +674,10 @@ Rules:
 - Examples: "departed Pearl Harbor" → operating_area: "pearl harbor", "in port Yokosuka" → operating_area: "yokosuka", "departed Panama" → operating_area: "panama", "operating in the Red Sea" → operating_area: "red sea"
 - Include ALL vessels mentioned in the group (carrier, cruisers, destroyers, amphibious ships)
 - vessel_type: CVN, LHD, LHA, LSD, LPD, CG, DDG, FFG, SSN, AOE, etc.
-- If an aircraft carrier is mentioned without a CSG number, create an entry as an independent deployment
+- If an aircraft carrier (CVN) is mentioned without a CSG number, create a top-level entry for it with its escorts as vessels
+- If an amphibious assault ship (LHD/LHA/LPD/LSD) is mentioned without an ARG, create a top-level entry for it with its escorts as vessels
+- Individual destroyers (DDG), cruisers (CG), frigates (FFG), LCS, and submarines (SSN/SSBN) are NEVER top-level entries. They are ALWAYS vessels within a CSG/ARG group.
+- If a destroyer or cruiser is mentioned with no obvious parent group, add it to the nearest geographically relevant CSG/ARG's vessel list, OR omit it entirely
 - If an ARG is mentioned with named ships, include ALL named ships
 - Capture "in-port" carriers (like USS George Washington in Yokosuka) — these are strategically important
 - Capture ARGs described as "departed" or "transiting" — they are actively deploying
