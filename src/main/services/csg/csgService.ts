@@ -235,6 +235,25 @@ export function stopCsgScheduler(): void {
 
 // ── Context for AI Chat / Sense-Making ──────────────────────
 
+function extractRelevantSnippet(rawText: string, groupName: string, groupDesignation: string): string {
+  // Search for the group name or hull number in the text
+  const searchTerms = [groupName, groupDesignation].filter(Boolean)
+  
+  for (const term of searchTerms) {
+    const idx = rawText.toLowerCase().indexOf(term.toLowerCase())
+    if (idx >= 0) {
+      // Start a bit before the match for context, take 400 chars
+      const start = Math.max(0, idx - 50)
+      const snippet = rawText.substring(start, start + 400).trim()
+      if (start > 0) return '...' + snippet
+      return snippet
+    }
+  }
+  
+  // Fallback: return last 300 chars (more likely to have actual content than nav)
+  return rawText.slice(-300).trim()
+}
+
 /**
  * Build a human-readable context string describing current fleet posture.
  * Used by the AI chat system prompt and the sense-making engine.
@@ -269,16 +288,19 @@ export function getCSGContextString(): string {
   // Add latest CSG intel context
   try {
     const intelRows = db.prepare(`
-      SELECT group_name, source, week_of, substr(raw_text, 1, 300) as snippet
-      FROM csg_intel
-      WHERE week_of = (SELECT MAX(week_of) FROM csg_intel)
-      ORDER BY group_name, source
-    `).all() as Array<{ group_name: string; source: string; week_of: string; snippet: string }>
+      SELECT ci.group_id, ci.group_name, ci.source, ci.week_of, ci.raw_text,
+             cg.designation
+      FROM csg_intel ci
+      LEFT JOIN carrier_groups cg ON ci.group_id = cg.id
+      WHERE ci.week_of = (SELECT MAX(week_of) FROM csg_intel)
+      ORDER BY ci.group_name, ci.source
+    `).all() as Array<{ group_id: string; group_name: string; source: string; week_of: string; raw_text: string; designation: string | null }>
 
     if (intelRows.length > 0) {
       result += `\n\nLatest Fleet Intel (week ${intelRows[0].week_of}):`
       for (const row of intelRows) {
-        result += `\n- ${row.group_name} (${row.source}): ${row.snippet}...`
+        const snippet = extractRelevantSnippet(row.raw_text, row.group_name, row.designation || '')
+        result += `\n- ${row.group_name} (${row.source}): ${snippet}`
       }
     }
   } catch { /* Table might not exist yet */ }

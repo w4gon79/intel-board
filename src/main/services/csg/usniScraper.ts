@@ -233,7 +233,7 @@ function findLinks(html: string, pattern: RegExp): string[] {
 }
 
 /** Extract the main article body content */
-function extractArticleBody(html: string): string {
+export function extractArticleBody(html: string): string {
   // Try to find the article content area
   const articleMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i)
   if (articleMatch) return articleMatch[1]
@@ -931,30 +931,10 @@ export async function scrapeUsniFleetTracker(): Promise<number> {
     const count = storeGroups(groups)
     console.log(`[CSG-Scraper] Stored ${count} carrier groups (${groups.reduce((sum, g) => sum + g.vessels.length, 0)} vessels)`)
 
-    // Step 7: Clean up stale groups not in the current article
-    // Collect the IDs of groups we just stored using the same ID generation logic
-    const storedGroupIds = new Set<string>()
-    for (const group of groups) {
-      storedGroupIds.add(generateGroupId(group))
-    }
-
-    const db = getDatabase()
-    const existingGroups = db.prepare('SELECT id FROM carrier_groups').all() as Array<{ id: string }>
-
-    let deleted = 0
-    for (const existing of existingGroups) {
-      if (!storedGroupIds.has(existing.id)) {
-        // This group was not in the current USNI article - remove it
-        db.prepare('DELETE FROM carrier_group_vessels WHERE group_id = ?').run(existing.id)
-        db.prepare('DELETE FROM carrier_groups WHERE id = ?').run(existing.id)
-        deleted++
-        console.log(`[CSG-Scraper] Removed stale group: ${existing.id}`)
-      }
-    }
-
-    if (deleted > 0) {
-      console.log(`[CSG-Scraper] Cleaned up ${deleted} stale groups`)
-    }
+    // Note: We intentionally do NOT delete groups missing from the current article.
+    // The AI parser may miss groups in any given parse. Groups persist in DB and
+    // get updated on next successful scrape. This ensures positions survive restarts
+    // even when the startup scrape fails.
 
     return count
   } catch (err) {

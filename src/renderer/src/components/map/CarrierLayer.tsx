@@ -195,46 +195,6 @@ export default function CarrierLayer({
           }
         }))
 
-      // ── Stagger overlapping CSG markers ──
-      // Spread groups within ~0.5 degrees of each other in a circle pattern
-      // so each marker is individually clickable
-      const CLUSTER_RADIUS = 0.3 // degrees offset (~30km)
-      const processed = new Set<number>()
-
-      for (let i = 0; i < features.length; i++) {
-        if (processed.has(i)) continue
-        const nearby: number[] = []
-        const coords_i = features[i].geometry.coordinates
-
-        // Find features at the same spot
-        for (let j = i + 1; j < features.length; j++) {
-          if (processed.has(j)) continue
-          const coords_j = features[j].geometry.coordinates
-          const dist =
-            Math.abs(coords_i[0] - coords_j[0]) +
-            Math.abs(coords_i[1] - coords_j[1])
-          if (dist < 0.5) {
-            nearby.push(j)
-          }
-        }
-
-        if (nearby.length > 0) {
-          // Include self in the cluster
-          const cluster = [i, ...nearby]
-          const angleStep = (2 * Math.PI) / cluster.length
-
-          cluster.forEach((idx, k) => {
-            const angle = k * angleStep - Math.PI / 2 // start from top
-            const original = features[idx].geometry.coordinates
-            features[idx].geometry.coordinates = [
-              original[0] + CLUSTER_RADIUS * Math.cos(angle),
-              original[1] + CLUSTER_RADIUS * Math.sin(angle)
-            ]
-            processed.add(idx)
-          })
-        }
-      }
-
       return features
     })()
   }

@@ -15,9 +15,12 @@
 - **ChromaDB** (embedded vector database for RAG)
 
 ### AI/ML Layer
-- **Ollama** (local/cloud LLM inference)
-- **nomic-embed-text** (embedding model via Ollama)
-- Chat model: user-selectable from settings (default: qwen2.5:3b)
+- **LLM Service** (`rag/llm.ts`): Centralized chat() function for all LLM calls
+  - Multi-provider: local Ollama + OpenAI-compatible cloud providers (ZAI, Groq, etc.)
+  - Resolution: cloud (if configured) → local Ollama → fallback model
+  - Tracks actual model used and fallback status
+- **Embeddings:** `nomic-embed-text` via Ollama (always local)
+- **No raw API calls:** All services use centralized chat()
 
 ## Project Structure (ACTUAL)
 
@@ -48,8 +51,13 @@ intel-board/
 │   │   ├── services/
 │   │   │   ├── adsb/adsbService.ts       # OpenSky polling
 │   │   │   ├── ais/aisService.ts         # AISStream WebSocket
-│   │   │   ├── analysis/predictor.ts     # AI prediction generation
+│   │   │   ├── analysis/predictor.ts     # AI predictions (90-min, HIGH/CRITICAL, max 3/cycle, failure backoff)
 │   │   │   ├── anomaly/anomalyEngine.ts  # Statistical anomaly detection
+│   │   │   ├── csg/
+│   │   │   │   ├── csgService.ts         # CSG management, context string with intel snippets
+│   │   │   │   ├── usniScraper.ts         # AI-powered USNI Fleet Tracker + intel storage
+│   │   │   │   ├── twzScraper.ts          # TWZ Carrier Tracker scraper for CSG intel
+│   │   │   │   └── aisMatcher.ts         # AIS matching with 6-layer guard
 │   │   │   ├── ingestion/
 │   │   │   │   ├── news.ts               # GDELT news ingestion
 │   │   │   │   ├── processor.ts          # Data processing pipeline
@@ -57,7 +65,7 @@ intel-board/
 │   │   │   ├── rag/
 │   │   │   │   ├── chunker.ts            # Text chunking
 │   │   │   │   ├── embedder.ts           # nomic-embed-text embedding
-│   │   │   │   ├── llm.ts               # Ollama chat API wrapper
+│   │   │   │   ├── llm.ts               # Centralized LLM service (multi-provider, fallback, metadata)
 │   │   │   │   ├── pipeline.ts           # Full RAG pipeline
 │   │   │   │   └── retriever.ts          # ChromaDB vector search
 │   │   │   └── storage/
@@ -182,6 +190,19 @@ CREATE TABLE predictions (
     resolved_at DATETIME,
     was_accurate BOOLEAN
 );
+
+-- CSG strategic intel (weekly article context)
+CREATE TABLE csg_intel (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id TEXT NOT NULL,
+    group_name TEXT NOT NULL,
+    week_of TEXT NOT NULL,
+    raw_text TEXT NOT NULL,
+    source TEXT NOT NULL,  -- 'usni' or 'twz'
+    source_url TEXT NOT NULL,
+    scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(group_id, week_of, source)
+);
 ```
 
 ## Map Layer Architecture
@@ -267,35 +288,33 @@ interface AppSettings {
 ## AI Model Configuration
 
 ### Architecture
-- **Ollama** serves as the unified LLM inference layer (local + cloud)
-- Base URL: `OLLAMA_BASE_URL` from `.env` (default: `http://localhost:11434`)
-- All AI services read model from settings at call time via `getConfiguredModel()`
-- No restart needed when changing models
+- **Centralized LLM Service** (`rag/llm.ts`): Single `chat()` function used by all AI services
+- **Multi-provider:** Local Ollama + OpenAI-compatible cloud providers (ZAI, OpenAI, Groq)
+- **Resolution order:** Cloud provider (if configured) → local Ollama → fallback model
+- **Metadata tracking:** Actual model used and fallback status returned with every call
+- **No restart needed:** All services read settings at call time
 
 ### AIPanel.tsx (Renderer Settings UI)
 - Slide-out drawer for AI configuration
-- Sections: Connection Status, LLM Provider, Embedding Model, Chat Model, Temperature
-- **Model Selection:**
-  - Dropdown: auto-populated from `GET /api/tags` (local models)
-  - Manual entry: any model name, including cloud models with `-cloud` suffix
-- **Connection Test:** Tests Ollama endpoint and refreshes model list
-- **Cloud Detection:** Any model name ending in `-cloud` triggers:
-  - Blue "cloud" badge display
-  - Privacy warning: prompts sent to Ollama cloud infrastructure
-- **Settings stored in:** `data/settings.json` → `ai.baseUrl`, `ai.chatModel`, `ai.temperature`
+- **Local Ollama:** Base URL, model dropdown (auto-populated), manual entry, temperature
+- **Cloud Provider:** Provider selector, base URL, API key, model name, independent temperature
+- **Fallback:** Optional fallback to local Ollama when cloud fails
+- **Connection Test:** Tests connectivity for both local and cloud providers
+- **Settings stored in:** `data/settings.json` → ai.* keys
 
-### Cloud Model Routing
-- Convention: model name ending in `-cloud` (e.g., `deepseek-v3.1:671b-cloud`)
-- Same Ollama API endpoint (`/api/chat`) for both local and cloud
-- Ollama handles routing to cloud providers internally
-- User sees no API difference; just add `-cloud` suffix
-- Current cloud models available through Ollama include deepseek, llama, gpt-oss variants
+### Token Conservation
+- **Predictor:** 90-min interval (was 30), HIGH/CRITICAL anomalies only, max 3 per cycle
+- **Failure backoff:** 30-min cooldown after 3 consecutive LLM failures (predictor + sense-making)
+- **No-markdown rule:** All prompts use plain text, explicit instructions for natural prose output
+- **Result:** ~4 LLM calls/hr (was ~12), 67% reduction
 
 ### Services Using Chat Model
-- `predictor.ts` - Strategic predictions via `getConfiguredModel()`
-- `llm.ts` - General LLM wrapper, `getConfiguredModel()`, falls back to `qwen2.5:3b`
-- `pipeline.ts` - Uses llm.ts which reads settings
-- `processor.ts` - Article analysis and intel item enrichment
+- `predictor.ts` - Strategic predictions (90-min cycle, failure backoff)
+- `predictionReviewer.ts` - Prediction accuracy review (2h cycle)
+- `senseMakingEngine.ts` - Cross-source analysis (30-min cycle, failure backoff)
+- `pipeline.ts` - RAG pipeline chat
+- `processor.ts` - Article analysis and intel enrichment
+- `usniScraper.ts` - AI-powered CSG parsing
 
 ### Embedding Model
 - Fixed: `nomic-embed-text` (274 MB, always runs locally)

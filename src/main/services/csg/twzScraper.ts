@@ -5,7 +5,7 @@
  * Reuses fetch helpers from usniScraper.
  */
 
-import { fetchUrl, fetchUrlWithBrowser, stripHtml } from './usniScraper'
+import { fetchUrl, fetchUrlWithBrowser, stripHtml, extractArticleBody } from './usniScraper'
 import { getDatabase } from '../storage/database'
 
 function getIsoWeek(): string {
@@ -28,8 +28,17 @@ export async function scrapeTwzCarrierTracker(): Promise<number> {
   ).get(weekOf) as { count: number }
 
   if (existing.count > 0) {
-    console.log(`[TWZ-Scraper] Already have TWZ intel for week ${weekOf}, skipping`)
-    return 0
+    // Clean up bad TWZ data from before the extractArticleBody fix
+    const badData = db.prepare(
+      "SELECT COUNT(*) as count FROM csg_intel WHERE source = 'twz' AND week_of = ? AND (raw_text LIKE '%Bunker Talk%' OR raw_text LIKE '%Search for:%')"
+    ).get(weekOf) as { count: number }
+    if (badData.count > 0) {
+      console.log(`[TWZ-Scraper] Cleaning up ${badData.count} bad TWZ entries for week ${weekOf}`)
+      db.prepare("DELETE FROM csg_intel WHERE source = 'twz' AND week_of = ? AND (raw_text LIKE '%Bunker Talk%' OR raw_text LIKE '%Search for:%')").run(weekOf)
+    } else {
+      console.log(`[TWZ-Scraper] Already have TWZ intel for week ${weekOf}, skipping`)
+      return 0
+    }
   }
 
   try {
@@ -53,7 +62,7 @@ export async function scrapeTwzCarrierTracker(): Promise<number> {
       articleHtml = await fetchUrlWithBrowser(articleUrl)
     }
 
-    const articleText = stripHtml(articleHtml).slice(0, 8000)
+    const articleText = stripHtml(extractArticleBody(articleHtml)).slice(0, 8000)
 
     // Step 4: Store as intel for all known CSG groups
     // TWZ covers all groups in one article, so store once per known group

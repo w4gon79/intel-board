@@ -10,24 +10,29 @@ A RAG-grounded AI intelligence dashboard that aggregates multi-source data (news
 
 The Intel Board is not a news reader. It is a **sense-making engine** that detects anomalies, correlates across domains, and surfaces developing events before they become headlines.
 
-## Current Status: MVP Complete (v0.1.0)
+## Current Status: Phase 5A In Progress
 
-All Tier 1 data sources are live and integrated. The core feedback loop (data ingestion, anomaly detection, AI prediction, user display) is fully functional.
+All Tier 1 data sources are live. Core feedback loop (data ingestion, anomaly detection, AI prediction, user display) is fully functional. AI sense-making engine produces cross-source analyses. CSG intel context feeds into AI chat. Token conservation active.
 
 ### What's Working
-- Live ADS-B flight tracking with military identification
+- Live ADS-B flight tracking with military identification (HexDB only)
 - Live AIS vessel tracking via WebSocket streaming
-- News ingestion from GDELT
+- News ingestion from GDELT + 6 scrapers (Reuters, Navy.mil, DOD, Maritime Exec, Jane's, OSINT Twitter)
 - Interactive Mapbox GL map with layered overlays
 - RAG-grounded intelligence feed (ALERT/WATCH/CONTEXT tiers)
-- AI chat assistant with source citations
+- AI chat assistant with source citations and fleet context
 - Anomaly detection engine with statistical baselines
-- Prediction engine with confidence scoring
-- Settings and AI model configuration panels
+- Prediction engine with confidence scoring and self-calibration
+- Settings and AI model configuration (local Ollama + cloud providers)
 - Layer controls (ADS-B, AIS, Intel toggleable)
 - Clustering toggle for map markers
 - Military-only filter mode
 - Desktop notifications
+- CSG intel ingestion from USNI + TWZ (weekly, with context)
+- Tactical significance engine (5 detection algorithms)
+- AI sense-making engine (cross-source fusion)
+- Remote HTTP server (mobile/tablet access)
+- Token conservation (90 min predictor, failure backoff, HIGH/CRITICAL only)
 
 ### What's Not Yet Built
 - Weather overlay (Tier 2)
@@ -37,7 +42,6 @@ All Tier 1 data sources are live and integrated. The core feedback loop (data in
 - Custom alert rules
 - Export/share intelligence briefs
 - Offline mode
-- Conversational queries on the map (click-for-brief)
 
 ## Data Sources
 
@@ -115,25 +119,27 @@ All Tier 1 data sources are live and integrated. The core feedback loop (data in
 
 ### 6. AI Configuration (IMPLEMENTED)
 - Slide-out drawer (AIPanel.tsx) for LLM model selection and connection management
-- **Provider:** Ollama (unified API for local and cloud models)
-- **Base URL:** Configurable, defaults to `http://localhost:11434`
-- **Chat Model Selection:**
-  - Dropdown auto-populates from Ollama's installed local models
-  - Manual entry field for any model name (local or cloud)
-  - Cloud models use `-cloud` suffix (e.g., `deepseek-v3.1:671b-cloud`)
-  - Cloud models route through Ollama's cloud infrastructure
-  - Privacy warning displayed when cloud model is active
+- **Multi-provider support:** Local Ollama, OpenAI-compatible cloud providers (ZAI, OpenAI, Groq), and fallback
+- **Local Ollama:**
+  - Base URL: Configurable, defaults to `http://localhost:11434`
+  - Dropdown auto-populates from Ollama's installed models
+  - Manual entry field for any model name
+- **Cloud Provider:**
+  - Provider selector (OpenAI-compatible)
+  - Base URL, API key, model name fields
+  - Independent temperature control
+- **Fallback:** Optional fallback to local Ollama if cloud provider fails
 - **Temperature Slider:** 0.0 (precise) to 1.0 (creative), stored as float
 - **Embedding Model:** Fixed to `nomic-embed-text` (always runs locally)
-- **Connection Testing:** Test button verifies Ollama connectivity and refreshes model list
-- **No Restart Required:** All AI services read model from settings at call time via `getConfiguredModel()`
-- **Currently Configured:** `deepseek-v3.1:671b-cloud` at temperature 0.3
+- **Connection Testing:** Test button verifies connectivity for local and cloud providers
+- **No Restart Required:** All AI services read model from settings at call time
 
-**Cloud Model Convention:**
-- Any model name ending in `-cloud` is treated as a cloud-hosted model
-- Examples: `deepseek-v3.1:671b-cloud`, `llama4:120b-cloud`, `gpt-oss:120b-cloud`
-- Same Ollama API endpoint (`/api/chat`) for both local and cloud
-- Cloud models show blue "cloud" badge in the UI
+**LLM Service Architecture (llm.ts):**
+- Centralized `chat()` function handles all LLM calls across the app
+- Resolution order: cloud provider (if configured) → local Ollama → fallback model
+- Tracks actual model used and fallback status for metadata
+- OpenAI-compatible API format for cloud providers
+- All raw Ollama API calls replaced with centralized service (predictor, sense-making, reviewer, processor)
 
 ### 7. Settings & Configuration (IMPLEMENTED)
 - Slide-out drawer with toggle switches
@@ -142,14 +148,6 @@ All Tier 1 data sources are live and integrated. The core feedback loop (data in
 - Military-only display filter
 - Saves to `data/settings.json`, applies immediately
 - Settings-changed event propagates to all components
-
-### 7. AI Configuration Panel (IMPLEMENTED)
-- Model dropdown populated from Ollama
-- Base URL configuration (default: localhost:11434)
-- Temperature slider
-- Test connection button
-- Chat model selection (reads from/writes to settings.ai.chatModel)
-- All AI services (predictor, llm, RAG pipeline) read model from settings at call time
 
 ## User Interface Layout
 
@@ -353,19 +351,30 @@ Persistent tracking of carrier strike groups (CSGs) and amphibious ready groups 
 
 **Source A: USNI News Fleet Tracker (weekly strategic picture)**
 - Scrape `https://news.usni.org/category/fleet-tracker` weekly
-- Parse carrier names (USS Eisenhower, USS Vinson, etc.), strike group composition, and approximate operating areas
+- AI parser (LLM temp 0.1) extracts structured CSG/ARG data from article text
+- Regex parser as fallback
 - Provides known deployment data even when ships go AIS-dark
-- Updated every Monday
+- Updated weekly + on startup
+- **CSG Intel:** Full article text stored in `csg_intel` table per group per week (INSERT OR REPLACE)
+- Smart snippet extraction: searches for group name in raw text, returns relevant 400-char section
 
-**Source B: AIS Live Tracking (real-time tactical supplement)**
+**Source B: TWZ Carrier Tracker (weekly strategic context)**
+- Scrapes The War Zone carrier tracker for additional CSG context intel
+- Uses article body extraction (not full page HTML)
+- Weekly dedup by ISO week
+- Falls back to Playwright browser fetch for bot-protected pages
+- Stores intel alongside USNI data in `csg_intel` with `source='twz'`
+
+**Source C: AIS Live Tracking (real-time tactical supplement)**
 - Cross-reference USNI-reported ship names with live AIS data
 - Match by MMSI (exact) first, then by normalized vessel name
-- **Guard 1: Water sanity check** - Reject AIS positions on land (simple lat/lon bounds check)
-- **Guard 2: MMSI-first matching** - Prefer exact MMSI matches over name matches to avoid false positives
-- **Guard 3: Operating area proximity** - Reject AIS matches more than 2000nm from the USNI-reported operating area
-- **Guard 4: Confidence levels** - AIS positions flagged as LOW confidence if name-only match, HIGH if MMSI confirmed
-- AIS never overrides USNI position for the strategic picture, only supplements when confirmed
-- Known Navy MMSI lookup table for reliable matching
+- **6-layer guard system** prevents false positive AIS matches
+- AIS never overrides USNI position for the strategic picture
+
+**CSG Intel Context in AI Analysis:**
+- `getCSGContextString()` includes fleet posture + latest intel snippets per group
+- AI chat, sense-making, and RAG pipeline all receive CSG intel context
+- AI knows not just WHERE a CSG is, but WHERE it's heading and WHY
 
 **CSG Marker Design:**
 - Distinct map marker (carrier silhouette or anchor icon) different from regular military vessel triangles
@@ -450,19 +459,26 @@ GFW 4Wings API (6-12h poll)
     → Map overlay (heatmap layer on SituationMap)
 ```
 
-### Phase 5: Advanced Features (NEXT)
-- Weather overlay
-- Economic indicators
-- Custom alert rules
-- Export/share intelligence briefs
-- Click-for-brief on map markers
-- Conversational map queries
+### Token Conservation (IMPLEMENTED)
+- Predictor interval: 90 min (was 30 min)
+- Only HIGH/CRITICAL anomalies get predictions (LOW/MODERATE skipped)
+- Max 3 predictions per cycle
+- Consecutive failure backoff: 30 min cooldown after 3 LLM failures
+- Sense-making engine also has failure backoff
+- Result: ~4 LLM calls/hr (was ~12), 67% reduction
+- No-markdown rule applied to all LLM prompts (natural prose only)
+
+### Phase 5: Advanced Features (CURRENT)
+- [ ] Custom alert rules (5A: basic rules)
+- [ ] Click-for-brief on map markers
+- [ ] Weather overlay (5F)
+- [ ] Economic indicators (5G)
+- [ ] Social media signals (5H)
 
 ### Phase 6: Deploy (FUTURE)
 - Offline mode
 - Auto-update
 - Multi-platform packaging
-- Documentation
 
 ## External API Reference
 

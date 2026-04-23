@@ -230,6 +230,46 @@ export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JS
         feature: f
       }))
 
+      // ── CSG proximity expansion ──
+      // Since CSG markers can overlap at low zoom, when clicking near ANY CSG
+      // marker, find ALL CSG groups in the source within a radius and add them.
+      // This ensures the tabbed popup shows all nearby groups.
+      const clickedCsg = typedFeatures.some(tf => tf.type === 'csg')
+      if (clickedCsg) {
+        const clickLng = e.lngLat.lng
+        const clickLat = e.lngLat.lat
+
+          // Query the CSG source directly for all features
+        const csgSource = map.getSource('carrier-groups')
+        if (csgSource) {
+          const allCsgFeatures = map.querySourceFeatures('carrier-groups')
+
+          // Add any CSG features not already in our list
+          const existingCsgIds = new Set(
+            typedFeatures
+              .filter(tf => tf.type === 'csg')
+              .map(tf => (tf.feature.properties as Record<string, unknown>).id as string)
+          )
+
+          for (const f of allCsgFeatures) {
+            const coords = (f.geometry as { type: string; coordinates: [number, number] }).coordinates
+            const dist = Math.sqrt(
+              Math.pow(coords[0] - clickLng, 2) + Math.pow(coords[1] - clickLat, 2)
+            )
+
+            // Rough distance check: within 3 degrees (~300nm) of click
+            if (dist < 3 && !existingCsgIds.has((f.properties as Record<string, unknown>).id as string)) {
+              typedFeatures.push({
+                type: 'csg',
+                layerId: CARRIER_MARKER_LAYER_ID,
+                feature: f
+              })
+              existingCsgIds.add((f.properties as Record<string, unknown>).id as string)
+            }
+          }
+        }
+      }
+
       // Use click coordinates for popup anchor
       const lngLat = e.lngLat.toArray() as [number, number]
 
