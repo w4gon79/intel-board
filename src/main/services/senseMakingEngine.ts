@@ -346,28 +346,28 @@ function buildAnalysisPrompt(
 
   return `You are a geopolitical intelligence analyst. Analyze the following data and identify significant patterns, escalations, or developments that warrant attention.
 
-## Current Fleet Posture
+CURRENT FLEET POSTURE:
 ${csgContext}
 
-## Choke Point Traffic Status
+CHOKE POINT TRAFFIC STATUS:
 ${chokePointContext}
 
-## Recent Tactical Events (last 4 hours)
+RECENT TACTICAL EVENTS (LAST 4 HOURS):
 ${eventStr}
 
-## Recent Intel Items (last 2 hours)
+RECENT INTEL ITEMS (LAST 2 HOURS):
 ${intelStr}
 
-## Recent News (last 6 hours)
+RECENT NEWS (LAST 6 HOURS):
 ${articleStr}
 
-## Social Media Signals (last 2 hours — unverified, use as early indicators only)
+SOCIAL MEDIA SIGNALS (LAST 2 HOURS — UNVERIFIED, USE AS EARLY INDICATORS ONLY):
 ${socialStr}
 
-## Economic Indicators (anomaly-highlighted)
+ECONOMIC INDICATORS (ANOMALY-HIGHLIGHTED):
 ${economicContext || 'No economic data available.'}
 
-## Task
+TASK:
 Identify 0-3 significant geopolitical developments based on the data above. For each:
 1. Synthesize information across sources (events + fleet posture + choke point traffic + news + social media signals)
 2. Assess severity: low (routine), moderate (notable), high (escalation), critical (imminent)
@@ -375,21 +375,21 @@ Identify 0-3 significant geopolitical developments based on the data above. For 
 4. Provide a 2-3 sentence analytical assessment
 
 Pay special attention to:
-- TRANSIT CORRIDOR STATUS: If a choke point shows "BLOCKED" or "SEVERELY DISRUPTED" status, this is a CRITICAL finding indicating potential blockade, mine-laying, or geopolitical closure
-- VESSELS WAITING PATTERN: If many vessels are in the choke point approach area but the transit corridor is empty, ships are waiting/anchored, NOT transiting. Strong signal of a blockade.
-- A strait is NOT "open" just because vessels are nearby. It is open ONLY when vessels are actively moving through the shipping lane (transit corridor traffic > 0).
-- AIRCRAFT NATIONALITY: KC-135, KC-46, KC-10, KC-767, A330 MRTT (Phenix), and similar tanker aircraft are NATO/Western allied assets. Only Il-78 Midas, YY-20, and similar adversary_type aircraft represent adversary operations. Do NOT conflate allied tanker operations with Russian or Chinese military activity.
-- AIRCRAFT EVENTS specify whether detected aircraft are allied or adversary in their descriptions. Read the event descriptions carefully before attributing aircraft to any nation.
-- Sudden changes in traffic patterns at strategic choke points (Hormuz, Malacca, Suez, Bab el-Mandeb)
-- Correlation between reduced choke point transit and nearby military activity or CSG movements
-- TRAFFIC ANOMALY DETECTION: Choke point status now uses cross-validation against expected traffic levels AND the health of other choke points. If Hormuz shows BLOCKED while Malacca and Suez are normal, this is a confirmed disruption, NOT a data gap.
-- EXPECTED vs ACTUAL: Each choke point has known typical traffic levels. A value of 0-2 at Hormuz (expected ~40) is treated the same as BLOCKED, regardless of baseline stats.
-- FLEET HEALTH: If 7 of 8 monitored choke points show normal traffic but one shows near-zero, the anomaly is real. Do not dismiss it as a data gap.
-- GFW SATELLITE DATA TAKES PRIORITY OVER AIS: GFW combines terrestrial AND satellite AIS, making it far more accurate than live AIS alone. If GFW shows vessels in the transit corridor, the choke point is OPEN regardless of what live AIS reports. AIS coverage gaps at choke points (Hormuz, Malacca, Panama) routinely show zero vessels when GFW confirms active transit. NEVER declare a blockade or disruption when GFW satellite data confirms vessel presence.
-- AIS vs GFW: Live AIS = terrestrial receivers only (frequent gaps at choke points). GFW = satellite + terrestrial combined (much more accurate). When they conflict, trust GFW.
-- STATUS OVERRIDES: If a choke point status says "OPEN (GFW confirmed)", this is definitive. Do not second-guess it based on low AIS counts.
-- STATUS CONFIDENCE: Each choke point status includes a confidence level. HIGH confidence disruptions should be treated as confirmed. MEDIUM confidence may indicate data gaps. LOW confidence suggests system-wide data issues and should not be treated as disruptions.
-- NORTH ATLANTIC AIRLIFT: Transport aircraft (C-17, C-130, C-5) transiting the North Atlantic are logistics flights to Europe, NOT Arctic operations. Only classify operations as "Arctic" if aircraft are confirmed above 70°N latitude. Large-scale transatlantic airlift is significant as it indicates major deployment to Europe or onward to the Middle East.
+TRANSIT CORRIDOR STATUS: If a choke point shows "BLOCKED" or "SEVERELY DISRUPTED" status, this is a CRITICAL finding indicating potential blockade, mine-laying, or geopolitical closure.
+VESSELS WAITING PATTERN: If many vessels are in the choke point approach area but the transit corridor is empty, ships are waiting/anchored, NOT transiting. Strong signal of a blockade.
+A strait is NOT "open" just because vessels are nearby. It is open ONLY when vessels are actively moving through the shipping lane (transit corridor traffic > 0).
+AIRCRAFT NATIONALITY: KC-135, KC-46, KC-10, KC-767, A330 MRTT (Phenix), and similar tanker aircraft are NATO/Western allied assets. Only Il-78 Midas, YY-20, and similar adversary_type aircraft represent adversary operations. Do NOT conflate allied tanker operations with Russian or Chinese military activity.
+AIRCRAFT EVENTS specify whether detected aircraft are allied or adversary in their descriptions. Read the event descriptions carefully before attributing aircraft to any nation.
+Sudden changes in traffic patterns at strategic choke points (Hormuz, Malacca, Suez, Bab el-Mandeb).
+Correlation between reduced choke point transit and nearby military activity or CSG movements.
+TRAFFIC ANOMALY DETECTION: Choke point status now uses cross-validation against expected traffic levels AND the health of other choke points. If Hormuz shows BLOCKED while Malacca and Suez are normal, this is a confirmed disruption, NOT a data gap.
+EXPECTED vs ACTUAL: Each choke point has known typical traffic levels. A value of 0-2 at Hormuz (expected ~40) is treated the same as BLOCKED, regardless of baseline stats.
+FLEET HEALTH: If 7 of 8 monitored choke points show normal traffic but one shows near-zero, the anomaly is real. Do not dismiss it as a data gap.
+GFW SATELLITE DATA TAKES PRIORITY OVER AIS: GFW combines terrestrial AND satellite AIS, making it far more accurate than live AIS alone. If GFW shows vessels in the transit corridor, the choke point is OPEN regardless of what live AIS reports. AIS coverage gaps at choke points (Hormuz, Malacca, Panama) routinely show zero vessels when GFW confirms active transit. NEVER declare a blockade or disruption when GFW satellite data confirms vessel presence.
+AIS vs GFW: Live AIS = terrestrial receivers only (frequent gaps at choke points). GFW = satellite + terrestrial combined (much more accurate). When they conflict, trust GFW.
+STATUS OVERRIDES: If a choke point status says "OPEN (GFW confirmed)", this is definitive. Do not second-guess it based on low AIS counts.
+STATUS CONFIDENCE: Each choke point status includes a confidence level. HIGH confidence disruptions should be treated as confirmed. MEDIUM confidence may indicate data gaps. LOW confidence suggests system-wide data issues and should not be treated as disruptions.
+NORTH ATLANTIC AIRLIFT: Transport aircraft (C-17, C-130, C-5) transiting the North Atlantic are logistics flights to Europe, NOT Arctic operations. Only classify operations as "Arctic" if aircraft are confirmed above 70 degrees North latitude. Large-scale transatlantic airlift is significant as it indicates major deployment to Europe or onward to the Middle East.
 
 Only report genuinely significant developments. Skip routine activity (normal patrols, training flights, standard port calls).
 

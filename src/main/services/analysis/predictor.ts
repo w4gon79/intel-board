@@ -120,29 +120,29 @@ function getCalibrationNote(): string {
 function getSystemPrompt(): string {
   return `You are a senior intelligence analyst. Your job is to decide whether a detected anomaly warrants a predictive assessment.
 
-## CRITICAL: YOUR TRACK RECORD ${getCalibrationNote()}
+CRITICAL: YOUR TRACK RECORD ${getCalibrationNote()}
 
 You have made predictions before. Many were wrong. You MUST learn from this.
 
-## MANDATORY RULES
+MANDATORY RULES:
 
-1. **DEFAULT TO INSUFFICIENT_DATA.** Most anomalies do NOT warrant predictions. If you are not CERTAIN that a specific, verifiable event will occur, respond with INSUFFICIENT_DATA.
+1. DEFAULT TO INSUFFICIENT_DATA. Most anomalies do NOT warrant predictions. If you are not CERTAIN that a specific, verifiable event will occur, respond with INSUFFICIENT_DATA.
 
-2. **VERIFIABLE ONLY.** A prediction is only valid if it would be reported by Reuters, AP, BBC, or Al Jazeera within the stated timeframe. Ask yourself: "Would a major news outlet publish an article confirming this?" If no, respond INSUFFICIENT_DATA.
+2. VERIFIABLE ONLY. A prediction is only valid if it would be reported by Reuters, AP, BBC, or Al Jazeera within the stated timeframe. Ask yourself: "Would a major news outlet publish an article confirming this?" If no, respond INSUFFICIENT_DATA.
 
-3. **GROUND IN THE TRIGGER.** Your prediction must be about the EXACT same region, metric, and actors mentioned in the triggering anomaly. If the trigger is "military flight count increased in Middle East," you predict about Middle East military flights. NOT about Algeria, NOT about the Baltic Sea, NOT about diplomatic negotiations.
+3. GROUND IN THE TRIGGER. Your prediction must be about the EXACT same region, metric, and actors mentioned in the triggering anomaly. If the trigger is "military flight count increased in Middle East," you predict about Middle East military flights. NOT about Algeria, NOT about the Baltic Sea, NOT about diplomatic negotiations.
 
-4. **NO SPECULATION.** Do not extrapolate beyond the data. "Military flights increased" does not mean "an airstrike is imminent." It means military flights increased. That's it.
+4. NO SPECULATION. Do not extrapolate beyond the data. "Military flights increased" does not mean "an airstrike is imminent." It means military flights increased. That's it.
 
-5. **SPECIFIC ENTITIES REQUIRED.** Every prediction must name at least one specific entity (country, city, military unit, leader, organization). "Increased tensions in the region" is not a prediction.
+5. SPECIFIC ENTITIES REQUIRED. Every prediction must name at least one specific entity (country, city, military unit, leader, organization). "Increased tensions in the region" is not a prediction.
 
-6. **BANNED PHRASES.** Never use: "high likelihood", "warrants monitoring", "remains a concern", "likely to continue", "may escalate", "there is a possibility", "growing concern", "heightened risk". These are not predictions.
+6. BANNED PHRASES. Never use: "high likelihood", "warrants monitoring", "remains a concern", "likely to continue", "may escalate", "there is a possibility", "growing concern", "heightened risk". These are not predictions.
 
-7. **CALIBRATION AWARENESS.** If your historical accuracy for this type of prediction is below 40%, you should be EXTREMELY reluctant to make any prediction. Return INSUFFICIENT_DATA unless the anomaly data is overwhelming and specific.
+7. CALIBRATION AWARENESS. If your historical accuracy for this type of prediction is below 40%, you should be EXTREMELY reluctant to make any prediction. Return INSUFFICIENT_DATA unless the anomaly data is overwhelming and specific.
 
-8. **TIMEFRAME REALISM.** Predictions must occur within 1-7 days. Do not predict events weeks or months out.
+8. TIMEFRAME REALISM. Predictions must occur within 1-7 days. Do not predict events weeks or months out.
 
-## RESPONSE FORMAT
+RESPONSE FORMAT:
 
 If the data supports a specific, verifiable prediction:
 ---PREDICTION---
@@ -159,37 +159,37 @@ If the data supports a specific, verifiable prediction:
 [1 alternative explanation for the observed anomalies]
 
 If the data does NOT support a specific prediction (this should be the common case):
-INSUFFICIENT_DATA`
+INSUFFICIENT_DATA
+
+FORMATTING: Write in natural prose. Do NOT use markdown formatting: no **bold**, no ## headers, no - bullet points, no _italic_, no code backticks, no ### or # symbols, no --- dividers. Use plain sentences with normal punctuation (periods, commas, colons, parentheses). Use numbered lists like "1." when needed but not dash bullets. Capitalize for emphasis instead of bold.`
 }
 
 function buildUserPrompt(input: PredictionInput, contextText: string, activeAnomalies: string, calibrationNote?: string): string {
-  return `## Critical Reminder
+  return `CRITICAL REMINDER:
 Before generating a prediction, verify:
-- Would this event be reported by Reuters, AP, or major news outlets if it happened?
-- Is this prediction DIRECTLY grounded in the triggering anomaly (${input.metric} in ${input.region})?
-- Am I inventing a scenario, or extrapolating from the data?
+Would this event be reported by Reuters, AP, or major news outlets if it happened?
+Is this prediction DIRECTLY grounded in the triggering anomaly (${input.metric} in ${input.region})?
+Am I inventing a scenario, or extrapolating from the data?
 
 If you cannot generate a prediction that meets ALL three criteria, respond with INSUFFICIENT_DATA.
 
-## Triggering Event
+TRIGGERING EVENT:
 An anomaly has been detected that warrants predictive analysis:
 
-- **Metric**: ${input.metric}
-- **Region**: ${input.region}
-- **Severity**: ${input.severity}
-- **Details**: ${input.triggerDescription}
-- **Trigger ID**: ${input.triggerId}
-- **Category**: ${input.category.replace(/_/g, ' ')}
+Metric: ${input.metric}
+Region: ${input.region}
+Severity: ${input.severity}
+Details: ${input.triggerDescription}
+Trigger ID: ${input.triggerId}
+Category: ${input.category.replace(/_/g, ' ')}
 
-## Active Anomalies (Current Context)
+ACTIVE ANOMALIES (CURRENT CONTEXT):
 ${activeAnomalies || 'No other active anomalies.'}
 
-## Retrieved Intelligence Context (RAG)
+RETRIEVED INTELLIGENCE CONTEXT (RAG):
 ${contextText || 'No additional context available from the intelligence database.'}
 
-${calibrationNote ? `## Historical Prediction Performance\n${calibrationNote}` : ''}
-
----
+${calibrationNote ? `HISTORICAL PREDICTION PERFORMANCE:\n${calibrationNote}` : ''}
 
 Based on the above intelligence, generate your prediction. Remember: only predict events that would appear in major news reporting and are directly supported by the anomaly data.`
 }

@@ -265,20 +265,20 @@ async function judgeAccuracy(
     },
     {
       role: 'user',
-      content: `## Original Prediction
+      content: `ORIGINAL PREDICTION:
 Predicted on: ${prediction.predicted_at}
 Expected by: ${prediction.expected_by ?? 'N/A'}
 Prediction: ${prediction.prediction_text ?? 'N/A'}
 Confidence at time: ${prediction.confidence ?? 'N/A'}%
 
-## Gathered Evidence (${evidence.length} items)
+GATHERED EVIDENCE (${evidence.length} items):
 ${evidenceText || 'No evidence found.'}
 
-## Your Task
+YOUR TASK:
 Based ONLY on the evidence above, determine whether the prediction was accurate.
 
 Rules:
-1. Be strict. A prediction is "accurate" only if the core claim came true. Partial fulfillment = partially_accurate.
+1. Be strict. A prediction is "accurate" only if the core claim came true. Partial fulfillment equals partially_accurate.
 2. If no relevant evidence was found, mark as "inconclusive" — do not guess.
 3. "Accurate" means the specific outcome predicted actually happened, not just that something related happened.
 4. Consider the timeframe — evidence outside the predicted timeframe is less relevant.
@@ -291,7 +291,9 @@ Respond EXACTLY in this format:
 ---EVIDENCE_SCORE---
 [sufficient / insufficient — was there enough evidence to make a confident judgment?]
 ---KEY_FINDING---
-[One sentence: what actually happened, regardless of the prediction]`
+[One sentence: what actually happened, regardless of the prediction]
+
+FORMATTING: Write in natural prose. Do NOT use markdown formatting: no **bold**, no ## headers, no - bullet points, no _italic_, no code backticks, no ### or # symbols, no --- dividers. Use plain sentences with normal punctuation (periods, commas, colons, parentheses). Use numbered lists like "1." when needed but not dash bullets. Capitalize for emphasis instead of bold.`
     }
   ]
 
@@ -566,7 +568,7 @@ export function getCalibrationContext(category?: string, region?: string): strin
 
   if (parts.length === 0) return ''
 
-  return `## Historical Prediction Performance\n${parts.join('\n')}\n\nAdjust confidence accordingly — if past predictions in this category/region have been inaccurate, be more conservative.`
+  return `HISTORICAL PREDICTION PERFORMANCE:\n${parts.join('\n')}\n\nAdjust confidence accordingly — if past predictions in this category/region have been inaccurate, be more conservative.`
 }
 
 // ── Review Scheduler ──
