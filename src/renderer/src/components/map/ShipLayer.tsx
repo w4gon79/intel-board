@@ -10,7 +10,7 @@
  *   - Triangle markers rotate to show vessel heading
  *
  * Vessel categories & colors:
- *   - Military (35-39):  Red (#ff3333) — slightly larger marker
+ *   - Military (35-39):  Cyan-Blue (#00B4D8) — slightly larger marker
  *   - Cargo (70-79):     Cyan (#00d4ff)
  *   - Tanker (80-89):    Amber (#ffaa00)
  *   - Passenger (60-69): White (#ffffff)
@@ -320,7 +320,7 @@ export default function ShipLayer({
 
       // ── Add triangle icons to map style ──
       // Military: slightly larger (14px vs 12px civilian), white stroke
-      map.addImage(ICON_IDS.military, createTriangleIcon('#ff3333', 14, '#ffffff', 1.5))
+      map.addImage(ICON_IDS.military, createTriangleIcon('#00B4D8', 14, '#ffffff', 1.5))
       map.addImage(ICON_IDS.cargo, createTriangleIcon('#00d4ff', 12, '#000000', 1))
       map.addImage(ICON_IDS.tanker, createTriangleIcon('#ffaa00', 12, '#000000', 1))
       map.addImage(ICON_IDS.passenger, createTriangleIcon('#ffffff', 12, '#000000', 1))
@@ -495,7 +495,7 @@ export default function ShipLayer({
       //   5. Cluster circles + count labels
       //   6. Military vessel name labels (topmost)
 
-      // ── Military vessels layer – always visible red triangles ──
+      // ── Military vessels layer – always visible cyan-blue triangles ──
       map.addLayer({
         id: MILITARY_LAYER_ID,
         type: 'symbol',

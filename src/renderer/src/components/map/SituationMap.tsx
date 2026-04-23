@@ -211,6 +211,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
 
   const showAdsb = layers?.adsb ?? true
   const showAis = layers?.ais ?? true
+  const showCsg = layers?.csg ?? true
   const showIntel = layers?.intel ?? true
   const showGfw = layers?.gfw ?? true
   const showCorridors = layers?.corridors ?? false
@@ -361,7 +362,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
           clustering={clustering}
         />
       )}
-      {mapReady && mapRef.current && <CarrierLayer map={mapRef.current} visible={showAis} />}
+      {mapReady && mapRef.current && <CarrierLayer map={mapRef.current} visible={showCsg} />}
       {mapReady && mapRef.current && <GfwLayer map={mapRef.current} visible={showGfw} />}
       {/* RegionLayer renders BEFORE TransitCorridorLayer so corridors are on top (z-order) */}
       {mapReady && mapRef.current && <RegionLayer map={mapRef.current} visible={showRegions} />}

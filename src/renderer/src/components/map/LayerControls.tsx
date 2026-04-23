@@ -9,6 +9,7 @@ import { isInElectron } from '../../utils/api'
 export interface LayerVisibility {
   adsb: boolean
   ais: boolean
+  csg: boolean
   intel: boolean
   gfw: boolean
   corridors: boolean
@@ -18,6 +19,7 @@ export interface LayerVisibility {
 interface LayerCounts {
   adsb: number
   ais: number
+  csg: number
   intel: number
   gfw: number
   corridors: number
@@ -36,6 +38,7 @@ const LAYER_CONFIG: Array<{
   color: string
 }> = [
   { key: 'adsb', label: 'ADS-B Flights', icon: '✈', color: 'text-green-400' },
+  { key: 'csg', label: 'CSG / ARG', icon: '⚓', color: 'text-amber-400' },
   { key: 'ais', label: 'AIS Vessels', icon: '🚢', color: 'text-cyan-400' },
   { key: 'gfw', label: 'GFW Presence', icon: '🛰', color: 'text-purple-400' },
   { key: 'intel', label: 'Intel Items', icon: '📍', color: 'text-amber-400' },
@@ -44,7 +47,7 @@ const LAYER_CONFIG: Array<{
 ]
 
 export function LayerControls({ layers, onToggle }: LayerControlsProps): React.JSX.Element {
-  const [counts, setCounts] = useState<LayerCounts>({ adsb: 0, ais: 0, intel: 0, gfw: 0, corridors: 8, regions: 15 })
+  const [counts, setCounts] = useState<LayerCounts>({ adsb: 0, ais: 0, csg: 0, intel: 0, gfw: 0, corridors: 8, regions: 15 })
   const [aisFeedAlive, setAisFeedAlive] = useState(true)
 
   // Fetch counts for all layers (Electron IPC or HTTP fallback)
@@ -52,16 +55,18 @@ export function LayerControls({ layers, onToggle }: LayerControlsProps): React.J
     async function fetchCounts(): Promise<void> {
       try {
         if (isInElectron()) {
-          const [adsbData, aisCount, intelCount, gfwStatus] = await Promise.all([
+          const [adsbData, aisCount, intelCount, gfwStatus, csgGroups] = await Promise.all([
             window.api.adsb.getCount().catch(() => ({ total: 0, military: 0 })),
             window.api.ais.getCount().catch(() => 0),
             window.api.intel.getCount().catch(() => 0),
-            window.api.gfw.getStatus().catch(() => ({ totalRecords: 0 }))
+            window.api.gfw.getStatus().catch(() => ({ totalRecords: 0 })),
+            (window.api as Record<string, Record<string, () => Promise<unknown[]>>>).carrier?.getGroups?.().catch(() => []) ?? []
           ])
           setCounts((prev) => ({
             ...prev,
             adsb: (adsbData as { total: number; military: number }).total,
             ais: aisCount as number,
+            csg: (csgGroups as unknown[]).length,
             intel: intelCount as number,
             gfw: (gfwStatus as { totalRecords: number }).totalRecords
           }))
@@ -75,16 +80,18 @@ export function LayerControls({ layers, onToggle }: LayerControlsProps): React.J
         } else {
           // Browser context — use HTTP API
           const base = `${window.location.origin}/api`
-          const [adsbData, aisCount, intelCount, gfwStatus] = await Promise.all([
+          const [adsbData, aisCount, intelCount, gfwStatus, csgGroups] = await Promise.all([
             fetch(`${base}/adsb/count`).then(r => r.json()).catch(() => ({ total: 0, military: 0 })),
             fetch(`${base}/ais/count`).then(r => r.json()).catch(() => 0),
             fetch(`${base}/intel/count`).then(r => r.json()).catch(() => 0),
-            fetch(`${base}/gfw/status`).then(r => r.json()).catch(() => ({ totalRecords: 0 }))
+            fetch(`${base}/gfw/status`).then(r => r.json()).catch(() => ({ totalRecords: 0 })),
+            fetch(`${base}/carrier/groups`).then(r => r.json()).catch(() => [])
           ])
           setCounts((prev) => ({
             ...prev,
             adsb: (adsbData as { total: number; military: number }).total,
             ais: aisCount as number,
+            csg: (csgGroups as unknown[]).length,
             intel: intelCount as number,
             gfw: (gfwStatus as { totalRecords: number }).totalRecords
           }))

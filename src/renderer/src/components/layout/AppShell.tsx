@@ -13,6 +13,7 @@ const DEFAULT_LAYERS: LayerVisibility = {
   adsb: true,
   gfw: true,
   ais: true,
+  csg: true,
   intel: true,
   corridors: false,
   regions: false
