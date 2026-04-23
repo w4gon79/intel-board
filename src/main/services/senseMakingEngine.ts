@@ -12,6 +12,12 @@ import { withWorldContext } from '../utils/worldContext'
 import { CHOKE_POINTS } from './ais/aisService'
 import { getEconomicContextString } from './economicService'
 
+// ── Sense-Making Failure Backoff ───────────────────────────
+
+let consecutiveSenseFailures = 0
+const MAX_SENSE_FAILURES = 3
+let senseBackoffUntil = 0
+
 // ── Expected Transit Traffic Constants ─────────────────────
 // Ballpark real-world daily transit counts for major choke points.
 // Used for cross-validation when baseline_stats are missing, zero, or unreliable.
@@ -49,6 +55,12 @@ interface SenseMakingResponse {
  * Run a sense-making cycle: gather data, call LLM, store results.
  */
 export async function runSenseMaking(): Promise<void> {
+  // Backoff guard: skip if too many consecutive failures
+  if (Date.now() < senseBackoffUntil) {
+    console.log('[SenseMaking] Skipping — in failure backoff')
+    return
+  }
+
   const db = getDatabase()
 
   // 1. Gather recent tactical events (last 4 hours)
@@ -125,8 +137,14 @@ export async function runSenseMaking(): Promise<void> {
       storeAnalysisResult(analysis)
     }
     console.log(`[SenseMaking] Generated ${result.analyses.length} analyses`)
+    consecutiveSenseFailures = 0
   } catch (err) {
     console.error('[SenseMaking] Analysis failed:', err instanceof Error ? err.message : String(err))
+    consecutiveSenseFailures++
+    if (consecutiveSenseFailures >= MAX_SENSE_FAILURES) {
+      senseBackoffUntil = Date.now() + 30 * 60 * 1000
+      console.warn(`[SenseMaking] ${MAX_SENSE_FAILURES} consecutive failures. Backing off for 30 min.`)
+    }
   }
 }
 

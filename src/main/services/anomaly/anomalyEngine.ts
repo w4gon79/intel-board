@@ -509,11 +509,11 @@ export function startAnomalyEngine(): void {
     detectionTimer = setInterval(() => { try { runAllDetections() } catch (err) { console.error('[ANOMALY] Detection run failed:', err) } }, DETECTION_INTERVAL_MS)
   }, 30_000)
 
-  // Batch prediction generation: every 30 minutes (offset 60s)
+  // Batch prediction generation: every 90 minutes (offset 60s)
   setTimeout(() => {
     predictionTimer = setInterval(() => {
       try { generatePredictionsForActiveAnomalies() } catch (err) { console.error('[PREDICTOR] Scheduled prediction run failed:', err) }
-    }, 30 * 60 * 1000)
+    }, 90 * 60 * 1000)
   }, 60_000)
 
   // Overdue prediction review flagging: every 6 hours

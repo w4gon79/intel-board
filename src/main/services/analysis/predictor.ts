@@ -26,6 +26,13 @@ import { withWorldContext } from '../../utils/worldContext'
 import { getCalibrationContext } from './predictionReviewer'
 import { getAllCalibrations } from '../storage/dbService'
 
+// ─── LLM Failure Backoff ───────────────────────────────────────────────────
+
+let consecutiveLLMFailures = 0
+const MAX_CONSECUTIVE_FAILURES = 3
+const FAILURE_BACKOFF_MS = 30 * 60 * 1000 // 30 min backoff after 3 consecutive failures
+let failureBackoffUntil = 0
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export type PredictionCategory =
@@ -431,8 +438,15 @@ export async function generatePrediction(input: PredictionInput): Promise<Predic
     const ollamaResult = await callOllama(messages)
     rawResponse = ollamaResult.text
     actualModel = ollamaResult.model
+    consecutiveLLMFailures = 0
   } catch (err) {
     console.error('[PREDICTOR] LLM call failed:', err)
+    consecutiveLLMFailures++
+    console.warn(`[PREDICTOR] LLM failure count: ${consecutiveLLMFailures}/${MAX_CONSECUTIVE_FAILURES}`)
+    if (consecutiveLLMFailures >= MAX_CONSECUTIVE_FAILURES) {
+      failureBackoffUntil = Date.now() + FAILURE_BACKOFF_MS
+      console.warn(`[PREDICTOR] Too many consecutive failures. Backing off for 30 minutes.`)
+    }
     return null
   }
 
@@ -553,12 +567,18 @@ function calculateExpectedBy(timeframe: string): Date {
  * Called periodically by the scheduler.
  */
 export async function generatePredictionsForActiveAnomalies(): Promise<number> {
+  // Backoff guard: skip if too many consecutive failures
+  if (Date.now() < failureBackoffUntil) {
+    console.log(`[PREDICTOR] Skipping — in failure backoff until ${new Date(failureBackoffUntil).toISOString()}`)
+    return 0
+  }
+
   console.log('[PREDICTOR] Checking active anomalies for prediction opportunities...')
   let count = 0
 
   try {
     const db = getDatabase()
-    const anomalies = db
+    const allAnomalies = db
       .prepare(
         `SELECT id, metric, region, baseline_value, observed_value, deviation_sigma
          FROM anomalies WHERE status = 'active'
@@ -572,6 +592,19 @@ export async function generatePredictionsForActiveAnomalies(): Promise<number> {
       observed_value: number
       deviation_sigma: number
     }>
+
+    // Cap predictions per cycle to limit LLM calls — filter HIGH/CRITICAL, sort CRITICAL first, limit to 3
+    const anomalies = allAnomalies
+      .filter(a => {
+        const sev = Math.abs(a.deviation_sigma) >= 3 ? 'CRITICAL' : Math.abs(a.deviation_sigma) >= 2.5 ? 'HIGH' : 'MODERATE'
+        if (sev !== 'HIGH' && sev !== 'CRITICAL') {
+          console.log(`[PREDICTOR] Skipping ${a.metric}/${a.region} — severity ${sev} below threshold`)
+          return false
+        }
+        return true
+      })
+      .sort((a, b) => (Math.abs(b.deviation_sigma) >= 3 ? 1 : 0) - (Math.abs(a.deviation_sigma) >= 3 ? 1 : 0))
+      .slice(0, 3)
 
     for (const anomaly of anomalies) {
       const severity = Math.abs(anomaly.deviation_sigma) >= 3 ? 'CRITICAL' : Math.abs(anomaly.deviation_sigma) >= 2.5 ? 'HIGH' : 'MODERATE'
