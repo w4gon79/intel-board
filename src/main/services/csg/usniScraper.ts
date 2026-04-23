@@ -115,7 +115,7 @@ const VESSEL_TYPE_PATTERNS: Array<{ pattern: RegExp; type: string }> = [
 
 // ── HTTP fetch helper ────────────────────────────────────────
 
-function fetchUrl(url: string): Promise<string> {
+export function fetchUrl(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const req = https.get(url, {
       headers: {
@@ -150,7 +150,7 @@ function fetchUrl(url: string): Promise<string> {
   })
 }
 
-/** Fetch a URL using system Chrome (bypasses Cloudflare/bot protection) */
+export /** Fetch a URL using system Chrome (bypasses Cloudflare/bot protection) */
 async function fetchUrlWithBrowser(url: string): Promise<string> {
   console.log(`[CSG-Scraper] Fetching with system Chrome: ${url}`)
   const browser = await chromium.launch({ 
@@ -203,7 +203,7 @@ async function fetchUrlWithBrowser(url: string): Promise<string> {
 
 // ── HTML parsing helpers (no cheerio dependency) ─────────────
 
-/** Extract text content between tags, strip HTML */
+export /** Extract text content between tags, strip HTML */
 function stripHtml(html: string): string {
   return html
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
@@ -839,6 +839,16 @@ ${articleText.substring(0, 16000)}`
   return groups
 }
 
+// ── ISO week helper ──────────────────────────────────────────
+
+function getIsoWeek(): string {
+  const now = new Date()
+  const start = new Date(now.getFullYear(), 0, 1)
+  const days = Math.floor((now.getTime() - start.getTime()) / (24 * 60 * 60 * 1000))
+  const weekNum = Math.ceil((days + start.getDay() + 1) / 7)
+  return `${now.getFullYear()}-W${String(weekNum).padStart(2, '0')}`
+}
+
 // ── Public API ───────────────────────────────────────────────
 
 /**
@@ -902,6 +912,20 @@ export async function scrapeUsniFleetTracker(): Promise<number> {
       console.log('[CSG-Scraper] No carrier groups found in article')
       return 0
     }
+
+    // Step 5b: Store full article context as CSG intel
+    const weekOf = getIsoWeek()
+    const insertIntel = getDatabase().prepare(`
+      INSERT OR REPLACE INTO csg_intel (group_id, group_name, week_of, raw_text, source, source_url)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `)
+
+    for (const group of groups) {
+      const groupId = generateGroupId(group)
+      const groupName = group.name || group.designation || 'Unknown Group'
+      insertIntel.run(groupId, groupName, weekOf, articleText.slice(0, 5000), 'usni', articleUrl)
+    }
+    console.log(`[CSG-Scraper] Stored intel for ${groups.length} groups (week ${weekOf})`)
 
     // Step 6: Store in database
     const count = storeGroups(groups)

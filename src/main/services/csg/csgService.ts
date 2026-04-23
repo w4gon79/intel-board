@@ -6,6 +6,7 @@
 
 import { getDatabase } from '../storage/database'
 import { scrapeUsniFleetTracker, storeSeedData } from './usniScraper'
+import { scrapeTwzCarrierTracker } from './twzScraper'
 import { runAisMatcher } from './aisMatcher'
 import { evaluateRules } from '../alerts/ruleEngine'
 import type {
@@ -204,7 +205,19 @@ export function startCsgScheduler(): void {
     scrapeUsniFleetTracker().catch((err) => {
       console.error('[CSG] Initial scrape error:', err instanceof Error ? err.message : String(err))
     })
+
+    // TWZ scrape: same schedule, dedup guard inside handles weekly logic
+    scrapeTwzCarrierTracker().catch((err) => {
+      console.error('[CSG] TWZ scrape error:', err instanceof Error ? err.message : String(err))
+    })
   }
+
+  // Also run TWZ on the weekly interval
+  setInterval(() => {
+    scrapeTwzCarrierTracker().catch((err) => {
+      console.error('[CSG] TWZ scrape error:', err instanceof Error ? err.message : String(err))
+    })
+  }, 7 * 24 * 60 * 60 * 1000)
 }
 
 /** Stop the CSG scheduler */
@@ -251,5 +264,24 @@ export function getCSGContextString(): string {
     return `- ${g.name || g.designation || 'Unknown Group'} [${status}] in ${area}${pos}: ${vessels}`
   })
 
-  return `Current Fleet Posture (${groups.length} groups):\n${lines.join('\n')}`
+  let result = `Current Fleet Posture (${groups.length} groups):\n${lines.join('\n')}`
+
+  // Add latest CSG intel context
+  try {
+    const intelRows = db.prepare(`
+      SELECT group_name, source, week_of, substr(raw_text, 1, 300) as snippet
+      FROM csg_intel
+      WHERE week_of = (SELECT MAX(week_of) FROM csg_intel)
+      ORDER BY group_name, source
+    `).all() as Array<{ group_name: string; source: string; week_of: string; snippet: string }>
+
+    if (intelRows.length > 0) {
+      result += `\n\nLatest Fleet Intel (week ${intelRows[0].week_of}):`
+      for (const row of intelRows) {
+        result += `\n- ${row.group_name} (${row.source}): ${row.snippet}...`
+      }
+    }
+  } catch { /* Table might not exist yet */ }
+
+  return result
 }

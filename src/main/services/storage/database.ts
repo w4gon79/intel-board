@@ -296,6 +296,19 @@ CREATE INDEX IF NOT EXISTS idx_economic_anomaly ON economic_indicators(is_anomal
 CREATE INDEX IF NOT EXISTS idx_economic_symbol ON economic_indicators(symbol);
 CREATE INDEX IF NOT EXISTS idx_economic_category ON economic_indicators(category);
 
+-- CSG intel context from USNI and TWZ (Phase 4F enrichment)
+CREATE TABLE IF NOT EXISTS csg_intel (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_id TEXT NOT NULL,
+  group_name TEXT NOT NULL,
+  week_of TEXT NOT NULL,
+  raw_text TEXT NOT NULL,
+  source TEXT NOT NULL,
+  source_url TEXT NOT NULL,
+  scraped_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(group_id, week_of, source)
+);
+
 -- Custom alert rules (Phase 5A)
 CREATE TABLE IF NOT EXISTS alert_rules (
   id TEXT PRIMARY KEY,
