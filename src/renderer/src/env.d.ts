@@ -100,6 +100,7 @@ interface Window {
       listModels: (baseUrl?: string) => Promise<Array<{ name: string; size: string; modified_at: string }>>
       testConnection: (baseUrl?: string) => Promise<{ ok: boolean; error?: string }>
       testOpenaiConnection: (baseUrl: string, apiKey: string) => Promise<{ ok: boolean; error?: string }>
+      testAI: (config: { provider: string; ollamaBaseUrl?: string; openaiBaseUrl?: string; openaiApiKey?: string }) => Promise<{ ok: boolean; error?: string; models?: number }>
     }
 
     // ── ADS-B ──
@@ -260,14 +261,21 @@ declare global {
     }
     retentionDays: number
     ai: {
-      baseUrl: string
-      chatModel: string
+      ollamaBaseUrl: string
+      primaryProvider: 'local' | 'ollama-cloud' | 'openai-compatible'
+      primaryLocalModel: string
+      primaryOllamaModel: string
+      primaryOpenaiBaseUrl: string
+      primaryOpenaiApiKey: string
+      primaryOpenaiModel: string
+      fallbackEnabled: boolean
+      fallbackProvider: 'local' | 'ollama-cloud' | 'openai-compatible'
+      fallbackLocalModel: string
+      fallbackOllamaModel: string
+      fallbackOpenaiBaseUrl: string
+      fallbackOpenaiApiKey: string
+      fallbackOpenaiModel: string
       temperature: number
-      cloudProvider: 'ollama' | 'openai-compatible'
-      cloudOpenaiBaseUrl: string
-      cloudOpenaiApiKey: string
-      cloudOpenaiModel: string
-      fallbackToLocal: boolean
     }
     remoteServer: {
       enabled: boolean

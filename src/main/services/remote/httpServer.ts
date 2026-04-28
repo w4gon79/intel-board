@@ -125,7 +125,7 @@ export class RemoteServer {
     app.get('/api/settings/models', async (req: Request, res: Response) => {
       try {
         const settings = loadSettings()
-        const baseUrl = (req.query.baseUrl as string) || settings.ai.baseUrl
+        const baseUrl = (req.query.baseUrl as string) || settings.ai.ollamaBaseUrl
         const url = `${baseUrl.replace(/\/$/, '')}/api/tags`
         const resp = await fetch(url, { signal: AbortSignal.timeout(5000) })
         if (!resp.ok) { res.json([]); return }
@@ -139,7 +139,7 @@ export class RemoteServer {
     app.get('/api/settings/test-connection', async (req: Request, res: Response) => {
       try {
         const settings = loadSettings()
-        const baseUrl = (req.query.baseUrl as string) || settings.ai.baseUrl
+        const baseUrl = (req.query.baseUrl as string) || settings.ai.ollamaBaseUrl
         const url = `${baseUrl.replace(/\/$/, '')}/api/tags`
         const resp = await fetch(url, { signal: AbortSignal.timeout(5000) })
         if (resp.ok) { res.json({ ok: true }) } else { res.json({ ok: false, error: `HTTP ${resp.status}` }) }
@@ -811,7 +811,7 @@ Provide a concise intelligence brief including:
     app.get('/api/rag/models', async (_req, res) => {
       try {
         const settings = loadSettings()
-        const url = `${settings.ai.baseUrl.replace(/\/$/, '')}/api/tags`
+        const url = `${settings.ai.ollamaBaseUrl.replace(/\/$/, '')}/api/tags`
         const resp = await fetch(url, { signal: AbortSignal.timeout(5000) })
         if (!resp.ok) {
           res.json([])

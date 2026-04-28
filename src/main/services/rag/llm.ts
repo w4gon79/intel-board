@@ -1,14 +1,12 @@
 /**
  * LLM Chat Service — generates responses via Ollama or OpenAI-compatible APIs.
  *
- * Supports:
- * - Local Ollama models (default)
- * - Ollama cloud models (`-cloud` suffix)
- * - OpenAI-compatible providers (ZAI, OpenAI, Groq, etc.)
- * Falls back to local Ollama model if cloud fails.
+ * Two-slot architecture:
+ * - Primary Model: local, ollama-cloud, or openai-compatible
+ * - Fallback Model: used automatically when primary fails
+ * Emergency fallback: qwen2.5:3b via local Ollama
  */
 
-import { config } from '../../utils/config'
 import { loadSettings } from '../../ipc/settings.handlers'
 import type { ChatMessage } from '../../../shared/types'
 
@@ -20,7 +18,7 @@ function stripThinking(text: string): string {
 // ── Types ──
 
 export interface LLMOptions {
-  /** Model name (defaults to configured chat model) */
+  /** Model name override (bypasses settings-based model selection) */
   model?: string
   /** Temperature (0-1, lower = more focused) */
   temperature?: number
@@ -52,10 +50,23 @@ interface OllamaChatResponse {
   eval_count?: number
 }
 
+/** Provider call configuration */
+interface ProviderCallConfig {
+  provider: 'local' | 'ollama-cloud' | 'openai-compatible'
+  ollamaBaseUrl: string
+  localModel: string
+  ollamaCloudModel: string
+  openaiBaseUrl: string
+  openaiApiKey: string
+  openaiModel: string
+  temperature: number
+  maxTokens?: number
+  timeoutMs: number
+}
+
 // ── Configuration ──
 
 const FALLBACK_MODEL = 'qwen2.5:3b'
-const OLLAMA_CHAT_ENDPOINT = `${config.ollamaBaseUrl}/api/chat`
 const DEFAULT_TEMPERATURE = 0.3
 const REQUEST_TIMEOUT_MS = 180_000 // 3 min
 
@@ -66,12 +77,22 @@ let modelsCacheTime = 0
 const MODELS_CACHE_TTL = 60_000 // 1 min
 
 /**
- * Read the currently configured chat model from settings (live — no restart needed).
- * Falls back to FALLBACK_MODEL if settings can't be loaded.
+ * Get the effective model name for the primary slot.
  */
 function getConfiguredModel(): string {
   try {
-    return loadSettings().ai.chatModel || FALLBACK_MODEL
+    const settings = loadSettings()
+    const ai = settings.ai
+    switch (ai.primaryProvider) {
+      case 'local':
+        return ai.primaryLocalModel || FALLBACK_MODEL
+      case 'ollama-cloud':
+        return ai.primaryOllamaModel || FALLBACK_MODEL
+      case 'openai-compatible':
+        return ai.primaryOpenaiModel || FALLBACK_MODEL
+      default:
+        return FALLBACK_MODEL
+    }
   } catch {
     return FALLBACK_MODEL
   }
@@ -95,7 +116,9 @@ export async function listModels(): Promise<string[]> {
   }
 
   try {
-    const response = await fetch(`${config.ollamaBaseUrl}/api/tags`, {
+    const settings = loadSettings()
+    const baseUrl = settings.ai.ollamaBaseUrl
+    const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/tags`, {
       signal: AbortSignal.timeout(5000)
     })
 
@@ -116,45 +139,30 @@ export async function listModels(): Promise<string[]> {
 // ── Chat API ──
 
 /**
- * Generate a chat completion.
+ * Generate a chat completion using the two-slot architecture.
  *
- * Routing logic:
- * 1. If the model name ends with `-cloud`, always use Ollama (cloud routing).
- * 2. If the cloud provider is `openai-compatible` and fully configured, try it first.
- *    If it fails and fallbackToLocal is true, fall through to Ollama.
- * 3. Default: Ollama (local model with fallback to FALLBACK_MODEL).
+ * 1. Try primary model
+ * 2. If primary fails and fallback is enabled, try fallback model
+ * 3. If both fail, throw
  */
 export async function chat(
   messages: ChatMessage[],
   options: LLMOptions = {}
 ): Promise<LLMResponse> {
   const settings = loadSettings()
-  const configuredModel = options.model || getConfiguredModel()
   const temperature = options.temperature ?? settings.ai.temperature ?? DEFAULT_TEMPERATURE
   const maxTokens = options.maxTokens
   const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS
   const startTime = Date.now()
 
-  // If user selected a cloud model with -cloud suffix, always use Ollama
-  if (configuredModel.endsWith('-cloud')) {
-    return chatViaOllama(messages, configuredModel, temperature, maxTokens, startTime)
-  }
-
-  // If cloud provider is OpenAI-compatible and configured, try it first
-  if (
-    settings.ai.cloudProvider === 'openai-compatible' &&
-    settings.ai.cloudOpenaiBaseUrl &&
-    settings.ai.cloudOpenaiApiKey &&
-    settings.ai.cloudOpenaiModel
-  ) {
+  // If caller provides an explicit model override, use it directly via Ollama
+  if (options.model) {
     try {
-      const response = await callOpenaiChat(messages, {
-        baseUrl: settings.ai.cloudOpenaiBaseUrl,
-        apiKey: settings.ai.cloudOpenaiApiKey,
-        model: settings.ai.cloudOpenaiModel,
+      const response = await callOllamaChat(messages, {
+        baseUrl: settings.ai.ollamaBaseUrl,
+        model: options.model,
         temperature,
-        maxTokens,
-        timeout: timeoutMs
+        maxTokens
       })
       return {
         text: response.message.content,
@@ -162,77 +170,169 @@ export async function chat(
         fellBack: false,
         durationMs: Date.now() - startTime
       }
-    } catch (cloudErr) {
-      console.warn(
-        `[llm] OpenAI-compatible provider failed:`,
-        cloudErr instanceof Error ? cloudErr.message : String(cloudErr)
-      )
-      // Fall through to Ollama if fallbackToLocal is true
-      if (!settings.ai.fallbackToLocal) {
-        throw cloudErr
+    } catch (err) {
+      // If fallback is enabled, try the configured fallback
+      if (settings.ai.fallbackEnabled) {
+        console.warn(`[llm] Explicit model '${options.model}' failed, trying fallback:`, err instanceof Error ? err.message : String(err))
+        try {
+          const fallbackConfig = buildProviderConfig(settings, 'fallback', temperature, maxTokens, timeoutMs)
+          const response = await callProvider(messages, fallbackConfig)
+          return { ...response, fellBack: true, durationMs: Date.now() - startTime }
+        } catch (fallbackErr) {
+          throw new Error(
+            `Both explicit model (${options.model}) and fallback failed. ` +
+            `Primary: ${err instanceof Error ? err.message : String(err)}. ` +
+            `Fallback: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`
+          )
+        }
       }
+      throw err
     }
   }
 
-  // Default: Ollama
-  return chatViaOllama(messages, configuredModel, temperature, maxTokens, startTime)
-}
+  // Normal two-slot routing: try primary, then fallback
+  const primaryConfig = buildProviderConfig(settings, 'primary', temperature, maxTokens, timeoutMs)
 
-/**
- * Ollama chat with automatic fallback to FALLBACK_MODEL.
- */
-async function chatViaOllama(
-  messages: ChatMessage[],
-  model: string,
-  temperature: number,
-  maxTokens: number | undefined,
-  startTime: number
-): Promise<LLMResponse> {
   try {
-    const response = await callOllamaChat(messages, { model, temperature, maxTokens })
-    return {
-      text: response.message.content,
-      model: response.model,
-      fellBack: false,
-      durationMs: Date.now() - startTime
-    }
-  } catch (err) {
-    if (model !== FALLBACK_MODEL) {
-      console.warn(
-        `[llm] Model '${model}' failed, falling back to '${FALLBACK_MODEL}':`,
-        err instanceof Error ? err.message : String(err)
-      )
+    const response = await callProvider(messages, primaryConfig)
+    return { ...response, fellBack: false, durationMs: Date.now() - startTime }
+  } catch (primaryErr) {
+    // Try fallback if enabled
+    if (settings.ai.fallbackEnabled && settings.ai.fallbackProvider) {
+      console.warn('[llm] Primary failed, trying fallback:', primaryErr instanceof Error ? primaryErr.message : String(primaryErr))
       try {
-        const fallbackResponse = await callOllamaChat(messages, {
-          model: FALLBACK_MODEL,
-          temperature,
-          maxTokens
-        })
-        return {
-          text: fallbackResponse.message.content,
-          model: fallbackResponse.model,
-          fellBack: true,
-          durationMs: Date.now() - startTime
-        }
+        const fallbackConfig = buildProviderConfig(settings, 'fallback', temperature, maxTokens, timeoutMs)
+        const response = await callProvider(messages, fallbackConfig)
+        return { ...response, fellBack: true, durationMs: Date.now() - startTime }
       } catch (fallbackErr) {
         throw new Error(
-          `[llm] Both primary (${model}) and fallback (${FALLBACK_MODEL}) failed. ` +
-          `Primary: ${err instanceof Error ? err.message : String(err)}. ` +
+          `Both primary and fallback failed. Primary: ${primaryErr instanceof Error ? primaryErr.message : String(primaryErr)}. ` +
           `Fallback: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`
         )
       }
     }
-    throw err
+    throw primaryErr
   }
 }
+
+/**
+ * Build a ProviderCallConfig from settings for a given slot (primary or fallback).
+ */
+function buildProviderConfig(
+  settings: ReturnType<typeof loadSettings>,
+  slot: 'primary' | 'fallback',
+  temperature: number,
+  maxTokens: number | undefined,
+  timeoutMs: number
+): ProviderCallConfig {
+  const ai = settings.ai
+  if (slot === 'primary') {
+    return {
+      provider: ai.primaryProvider || 'local',
+      ollamaBaseUrl: ai.ollamaBaseUrl,
+      localModel: ai.primaryLocalModel || FALLBACK_MODEL,
+      ollamaCloudModel: ai.primaryOllamaModel || FALLBACK_MODEL,
+      openaiBaseUrl: ai.primaryOpenaiBaseUrl,
+      openaiApiKey: ai.primaryOpenaiApiKey,
+      openaiModel: ai.primaryOpenaiModel,
+      temperature,
+      maxTokens,
+      timeoutMs
+    }
+  }
+  return {
+    provider: ai.fallbackProvider || 'local',
+    ollamaBaseUrl: ai.ollamaBaseUrl,
+    localModel: ai.fallbackLocalModel || FALLBACK_MODEL,
+    ollamaCloudModel: ai.fallbackOllamaModel || FALLBACK_MODEL,
+    openaiBaseUrl: ai.fallbackOpenaiBaseUrl,
+    openaiApiKey: ai.fallbackOpenaiApiKey,
+    openaiModel: ai.fallbackOpenaiModel,
+    temperature,
+    maxTokens,
+    timeoutMs
+  }
+}
+
+/**
+ * Route a chat request to the correct provider based on config.
+ */
+async function callProvider(
+  messages: ChatMessage[],
+  config: ProviderCallConfig
+): Promise<{ text: string; model: string }> {
+  switch (config.provider) {
+    case 'local':
+      return callLocalOllama(messages, config)
+    case 'ollama-cloud':
+      return callOllamaCloud(messages, config)
+    case 'openai-compatible':
+      return callOpenaiCompatible(messages, config)
+    default:
+      throw new Error(`[llm] Unknown provider: ${config.provider}`)
+  }
+}
+
+/**
+ * Call a local Ollama model.
+ */
+async function callLocalOllama(
+  messages: ChatMessage[],
+  config: ProviderCallConfig
+): Promise<{ text: string; model: string }> {
+  const response = await callOllamaChat(messages, {
+    baseUrl: config.ollamaBaseUrl,
+    model: config.localModel || FALLBACK_MODEL,
+    temperature: config.temperature,
+    maxTokens: config.maxTokens
+  })
+  return { text: response.message.content, model: response.model }
+}
+
+/**
+ * Call an Ollama cloud model (uses the same API, model name routes to cloud).
+ */
+async function callOllamaCloud(
+  messages: ChatMessage[],
+  config: ProviderCallConfig
+): Promise<{ text: string; model: string }> {
+  const response = await callOllamaChat(messages, {
+    baseUrl: config.ollamaBaseUrl,
+    model: config.ollamaCloudModel,
+    temperature: config.temperature,
+    maxTokens: config.maxTokens
+  })
+  return { text: response.message.content, model: response.model }
+}
+
+/**
+ * Call an OpenAI-compatible provider.
+ */
+async function callOpenaiCompatible(
+  messages: ChatMessage[],
+  config: ProviderCallConfig
+): Promise<{ text: string; model: string }> {
+  const response = await callOpenaiChat(messages, {
+    baseUrl: config.openaiBaseUrl,
+    apiKey: config.openaiApiKey,
+    model: config.openaiModel,
+    temperature: config.temperature,
+    maxTokens: config.maxTokens,
+    timeout: config.timeoutMs
+  })
+  return { text: response.message.content, model: response.model }
+}
+
+// ── Low-level API calls ──
 
 /**
  * Low-level Ollama chat API call.
  */
 async function callOllamaChat(
   messages: ChatMessage[],
-  options: { model: string; temperature: number; maxTokens?: number }
+  options: { baseUrl: string; model: string; temperature: number; maxTokens?: number }
 ): Promise<OllamaChatResponse> {
+  const baseUrl = options.baseUrl.replace(/\/$/, '')
   const body = JSON.stringify({
     model: options.model,
     messages,
@@ -245,7 +345,7 @@ async function callOllamaChat(
 
   let response: Response
   try {
-    response = await fetch(OLLAMA_CHAT_ENDPOINT, {
+    response = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
@@ -253,7 +353,7 @@ async function callOllamaChat(
     })
   } catch (err) {
     throw new Error(
-      `[llm] Failed to connect to Ollama at ${config.ollamaBaseUrl}. ` +
+      `[llm] Failed to connect to Ollama at ${baseUrl}. ` +
       `Is Ollama running? Error: ${err instanceof Error ? err.message : String(err)}`
     )
   }
@@ -342,12 +442,34 @@ export async function isLLMHealthy(): Promise<{
   model: string
   error?: string
 }> {
+  const settings = loadSettings()
+  const ai = settings.ai
+  const model = getConfiguredModel()
+
   try {
-    const response = await fetch(OLLAMA_CHAT_ENDPOINT, {
+    if (ai.primaryProvider === 'openai-compatible') {
+      // Test OpenAI-compatible endpoint
+      if (!ai.primaryOpenaiBaseUrl || !ai.primaryOpenaiApiKey) {
+        return { healthy: false, model, error: 'OpenAI-compatible provider not configured' }
+      }
+      const url = `${ai.primaryOpenaiBaseUrl.replace(/\/$/, '')}/models`
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${ai.primaryOpenaiApiKey}` },
+        signal: AbortSignal.timeout(10_000)
+      })
+      if (!resp.ok) {
+        return { healthy: false, model, error: `HTTP ${resp.status}` }
+      }
+      return { healthy: true, model }
+    }
+
+    // Test Ollama (local or cloud)
+    const baseUrl = ai.ollamaBaseUrl.replace(/\/$/, '')
+    const response = await fetch(`${baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: getConfiguredModel(),
+        model,
         messages: [{ role: 'user', content: 'ping' }],
         options: { num_predict: 1 },
         stream: false
@@ -356,14 +478,14 @@ export async function isLLMHealthy(): Promise<{
     })
 
     if (!response.ok) {
-      return { healthy: false, model: getConfiguredModel(), error: `HTTP ${response.status}` }
+      return { healthy: false, model, error: `HTTP ${response.status}` }
     }
 
-    return { healthy: true, model: getConfiguredModel() }
+    return { healthy: true, model }
   } catch (err) {
     return {
       healthy: false,
-      model: getConfiguredModel(),
+      model,
       error: err instanceof Error ? err.message : String(err)
     }
   }

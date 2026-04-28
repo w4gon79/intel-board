@@ -64,7 +64,13 @@ interface OverduePrediction {
 
 function getConfiguredModel(): string {
   try {
-    return loadSettings().ai.chatModel || 'qwen2.5:3b'
+    const ai = loadSettings().ai
+    switch (ai.primaryProvider) {
+      case 'local': return ai.primaryLocalModel || 'qwen2.5:3b'
+      case 'ollama-cloud': return ai.primaryOllamaModel || 'qwen2.5:3b'
+      case 'openai-compatible': return ai.primaryOpenaiModel || 'qwen2.5:3b'
+      default: return 'qwen2.5:3b'
+    }
   } catch {
     return 'qwen2.5:3b'
   }

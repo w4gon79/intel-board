@@ -107,7 +107,10 @@ const api = {
     testConnection: (baseUrl?: string) => ipcRenderer.invoke('settings:testConnection', baseUrl),
     /** Test OpenAI-compatible connection */
     testOpenaiConnection: (baseUrl: string, apiKey: string) =>
-      ipcRenderer.invoke('settings:testOpenaiConnection', baseUrl, apiKey)
+      ipcRenderer.invoke('settings:testOpenaiConnection', baseUrl, apiKey),
+    /** Unified AI connection test (primary or fallback) */
+    testAI: (config: { provider: string; ollamaBaseUrl?: string; openaiBaseUrl?: string; openaiApiKey?: string }) =>
+      ipcRenderer.invoke('settings:testAI', config)
   },
 
   // ── ADS-B / Flight Tracking ──

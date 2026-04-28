@@ -36,17 +36,30 @@ export interface AppSettings {
   }
   // Data Retention
   retentionDays: number
-  // AI / LLM Configuration
+  // AI / LLM Configuration (two-slot: Primary + Fallback)
   ai: {
-    baseUrl: string
-    chatModel: string
+    // Shared Ollama base URL (used by Local and Ollama Cloud providers)
+    ollamaBaseUrl: string
+
+    // Primary Model
+    primaryProvider: 'local' | 'ollama-cloud' | 'openai-compatible'
+    primaryLocalModel: string
+    primaryOllamaModel: string
+    primaryOpenaiBaseUrl: string
+    primaryOpenaiApiKey: string
+    primaryOpenaiModel: string
+
+    // Fallback Model
+    fallbackEnabled: boolean
+    fallbackProvider: 'local' | 'ollama-cloud' | 'openai-compatible'
+    fallbackLocalModel: string
+    fallbackOllamaModel: string
+    fallbackOpenaiBaseUrl: string
+    fallbackOpenaiApiKey: string
+    fallbackOpenaiModel: string
+
+    // Temperature (shared)
     temperature: number
-    // Cloud provider settings
-    cloudProvider: 'ollama' | 'openai-compatible'
-    cloudOpenaiBaseUrl: string
-    cloudOpenaiApiKey: string
-    cloudOpenaiModel: string
-    fallbackToLocal: boolean
   }
   // Remote Access (Phase 4I)
   remoteServer: {
@@ -88,14 +101,21 @@ const DEFAULT_SETTINGS: AppSettings = {
   },
   retentionDays: 30,
   ai: {
-    baseUrl: config.ollamaBaseUrl,
-    chatModel: 'qwen2.5:3b',
-    temperature: 0.3,
-    cloudProvider: 'ollama',
-    cloudOpenaiBaseUrl: '',
-    cloudOpenaiApiKey: '',
-    cloudOpenaiModel: '',
-    fallbackToLocal: true
+    ollamaBaseUrl: config.ollamaBaseUrl,
+    primaryProvider: 'local',
+    primaryLocalModel: 'qwen2.5:3b',
+    primaryOllamaModel: '',
+    primaryOpenaiBaseUrl: '',
+    primaryOpenaiApiKey: '',
+    primaryOpenaiModel: '',
+    fallbackEnabled: true,
+    fallbackProvider: 'local',
+    fallbackLocalModel: 'qwen2.5:3b',
+    fallbackOllamaModel: '',
+    fallbackOpenaiBaseUrl: '',
+    fallbackOpenaiApiKey: '',
+    fallbackOpenaiModel: '',
+    temperature: 0.3
   },
   remoteServer: {
     enabled: false,
@@ -119,6 +139,63 @@ function getSettingsPath(): string {
   return join(dir, 'settings.json')
 }
 
+/**
+ * Migrate old single-model AI settings to the two-slot architecture.
+ * Runs in-place on the parsed JSON before deep-merge.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function migrateAISettings(ai: Record<string, any>): Record<string, any> {
+  // If already migrated (has ollamaBaseUrl), nothing to do
+  if (ai.ollamaBaseUrl !== undefined) return ai
+
+  const migrated = { ...ai }
+
+  // baseUrl → ollamaBaseUrl
+  migrated.ollamaBaseUrl = ai.baseUrl || config.ollamaBaseUrl
+
+  // chatModel → determine primary provider
+  const chatModel = ai.chatModel || 'qwen2.5:3b'
+  if (chatModel.endsWith('-cloud')) {
+    migrated.primaryProvider = 'ollama-cloud'
+    migrated.primaryOllamaModel = chatModel
+    migrated.primaryLocalModel = 'qwen2.5:3b'
+  } else if (ai.cloudProvider === 'openai-compatible') {
+    migrated.primaryProvider = 'openai-compatible'
+    migrated.primaryLocalModel = 'qwen2.5:3b'
+  } else {
+    migrated.primaryProvider = 'local'
+    migrated.primaryLocalModel = chatModel
+  }
+
+  // Cloud OpenAI settings → primary OpenAI settings
+  migrated.primaryOpenaiBaseUrl = ai.cloudOpenaiBaseUrl || ''
+  migrated.primaryOpenaiApiKey = ai.cloudOpenaiApiKey || ''
+  migrated.primaryOpenaiModel = ai.cloudOpenaiModel || ''
+
+  // Fallback
+  migrated.fallbackEnabled = ai.fallbackToLocal !== false
+  migrated.fallbackProvider = 'local'
+  migrated.fallbackLocalModel = 'qwen2.5:3b'
+  migrated.fallbackOllamaModel = ''
+  migrated.fallbackOpenaiBaseUrl = ''
+  migrated.fallbackOpenaiApiKey = ''
+  migrated.fallbackOpenaiModel = ''
+
+  // Temperature stays
+  migrated.temperature = ai.temperature ?? 0.3
+
+  // Remove old keys
+  delete migrated.baseUrl
+  delete migrated.chatModel
+  delete migrated.cloudProvider
+  delete migrated.cloudOpenaiBaseUrl
+  delete migrated.cloudOpenaiApiKey
+  delete migrated.cloudOpenaiModel
+  delete migrated.fallbackToLocal
+
+  return migrated
+}
+
 export function loadSettings(): AppSettings {
   const path = getSettingsPath()
   if (!existsSync(path)) {
@@ -127,6 +204,11 @@ export function loadSettings(): AppSettings {
   try {
     const raw = readFileSync(path, 'utf-8')
     const parsed = JSON.parse(raw) as Partial<AppSettings>
+    // Migrate old AI settings if needed
+    if (parsed.ai) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      parsed.ai = migrateAISettings(parsed.ai as Record<string, any>) as AppSettings['ai']
+    }
     // Deep-merge with defaults so new keys are always present
     return {
       ...DEFAULT_SETTINGS,
@@ -238,14 +320,14 @@ export function registerSettingsHandlers(): void {
   // List available Ollama models
   ipcMain.handle('settings:listModels', async (_event, baseUrl?: string) => {
     const settings = loadSettings()
-    const url = baseUrl ?? settings.ai.baseUrl
+    const url = baseUrl ?? settings.ai.ollamaBaseUrl
     return await fetchOllamaModels(url)
   })
 
   // Test Ollama connection
   ipcMain.handle('settings:testConnection', async (_event, baseUrl?: string) => {
     const settings = loadSettings()
-    const url = baseUrl ?? settings.ai.baseUrl
+    const url = baseUrl ?? settings.ai.ollamaBaseUrl
     return await testOllamaConnection(url)
   })
 
@@ -261,6 +343,59 @@ export function registerSettingsHandlers(): void {
         })
         if (resp.ok) return { ok: true }
         return { ok: false, error: `HTTP ${resp.status}` }
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : 'Connection failed'
+        }
+      }
+    }
+  )
+
+  // Unified AI connection test (primary or fallback)
+  ipcMain.handle(
+    'settings:testAI',
+    async (
+      _event,
+      testConfig: {
+        provider: string
+        ollamaBaseUrl?: string
+        openaiBaseUrl?: string
+        openaiApiKey?: string
+      }
+    ) => {
+      try {
+        if (testConfig.provider === 'local' || testConfig.provider === 'ollama-cloud') {
+          // Test Ollama connection
+          const url = testConfig.ollamaBaseUrl || config.ollamaBaseUrl
+          const result = await testOllamaConnection(url)
+          if (result.ok) {
+            // Also fetch model count
+            const models = await fetchOllamaModels(url)
+            return { ok: true, models: models.length }
+          }
+          return result
+        } else if (testConfig.provider === 'openai-compatible') {
+          // Test OpenAI-compatible connection
+          if (!testConfig.openaiBaseUrl || !testConfig.openaiApiKey) {
+            return { ok: false, error: 'Base URL and API Key required' }
+          }
+          const url = `${testConfig.openaiBaseUrl.replace(/\/$/, '')}/models`
+          const resp = await fetch(url, {
+            headers: { Authorization: `Bearer ${testConfig.openaiApiKey}` },
+            signal: AbortSignal.timeout(5000)
+          })
+          if (resp.ok) {
+            try {
+              const body = (await resp.json()) as { data?: unknown[] }
+              return { ok: true, models: body.data?.length ?? 0 }
+            } catch {
+              return { ok: true, models: 0 }
+            }
+          }
+          return { ok: false, error: `HTTP ${resp.status}` }
+        }
+        return { ok: false, error: `Unknown provider: ${testConfig.provider}` }
       } catch (err) {
         return {
           ok: false,
