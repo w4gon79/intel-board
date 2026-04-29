@@ -26,7 +26,6 @@
     "@electron-toolkit/utils": "^4.0.0",
     "better-sqlite3": "^12.8.0",
     "chromadb": "^3.4.0",
-    "dotenv": "^17.4.0",
     "express": "^5.2.1",
     "franc": "^6.2.0",
     "maplibre-gl": "^5.24.0",

@@ -80,7 +80,7 @@ const NEWS_REGIONS = [
  * Rotates through queries and regions to maximise coverage within rate limits.
  */
 export async function fetchNewsApiHeadlines(): Promise<RawArticle[]> {
-  if (!config.hasNewsApiKey) {
+  if (!config.newsApiKey) {
     console.warn('[ingestion:newsapi] No NEWS_API_KEY configured, skipping')
     return []
   }
@@ -152,7 +152,7 @@ export async function fetchNewsApiHeadlines(): Promise<RawArticle[]> {
  * Useful for targeted searches on breaking topics.
  */
 export async function fetchNewsApiEverything(query: string): Promise<RawArticle[]> {
-  if (!config.hasNewsApiKey) return []
+  if (!config.newsApiKey) return []
 
   const url = new URL(`${NEWS_API_BASE}/everything`)
   url.searchParams.set('apiKey', config.newsApiKey)

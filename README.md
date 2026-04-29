@@ -53,35 +53,51 @@ Alternative: Any OpenAI-compatible API endpoint (OpenAI, Together, DeepSeek, etc
 git clone https://github.com/w4gon79/intel-board.git
 cd intel-board
 npm install
-
-# Create .env with your tokens
-cp .env.example .env
-# Edit .env: add API keys for news, AI models, etc. (no map token needed!)
-
 npm run dev
 ```
 
 The app opens to the situation map with the intelligence feed panel.
 
+On first launch, open **Settings** (gear icon) to configure your API keys. The app works with partial configuration but more sources = better analysis.
+
+## Configuration
+
+All configuration is done through the **Settings** panel in the app. No `.env` files needed.
+
+### API Keys
+
+Open Settings → **API Keys** tab. Each key has a signup link and a Test button to verify it works.
+
+| Key | Required | Free? | Purpose |
+|-----|----------|-------|---------|
+| News API Key | Recommended | Yes (100 req/day) | News articles from newsapi.org |
+| OpenSky Username + Password | Recommended | Yes (4K req/day) | Live aircraft tracking via opensky-network.org |
+| AISStream API Key | Recommended | Yes | Real-time ship tracking via aisstream.io |
+| GFW API Token | Optional | Yes (non-commercial) | Vessel presence data from globalfishingwatch.org |
+| FRED API Key | Optional | Yes (120 req/min) | Economic indicators from fred.stlouisfed.org |
+
+Services without API keys (GDELT, Google News RSS, Open-Meteo weather) work out of the box.
+
 ### AI Model Configuration
 
-Open Settings (gear icon or drawer) to configure:
+Open Settings → **AI** tab:
 
 - **Primary Model** — Main AI for analysis, chat, and predictions
 - **Fallback Model** — Used automatically if primary fails
 - **Embedding Model** — For RAG vector search (default: `nomic-embed-text`)
 
-Models can be local (Ollama), cloud (OpenAI-compatible), or mixed.
+Supports local Ollama, Ollama cloud models (e.g., `deepseek-v4-pro:cloud`), and OpenAI-compatible APIs. Any combination works.
 
-### Data Sources Configuration
+**Local Ollama setup:**
+```bash
+# Install Ollama from https://ollama.com
+ollama pull nomic-embed-text   # Embedding model (required for RAG)
+ollama pull qwen2.5:3b         # Chat model (or any model you prefer)
+```
 
-Configure in Settings:
-- **GDELT API key** — For global news/intelligence feeds
-- **NewsAPI key** — For supplementary news search
-- **RSS feeds** — Custom feed URLs
-- **Social media** — Twitter/social monitoring setup
+### Map
 
-The app works with partial data sources but more sources = better analysis.
+Uses free CARTO/OpenStreetMap dark tiles. No API key or configuration needed.
 
 ## Scripts
 
