@@ -1,80 +1,178 @@
 # Intel Board
 
-RAG-grounded intelligence dashboard: multi-source data, local-first Electron desktop app, citations for every AI claim.
+Real-time OSINT intelligence dashboard with AI-powered analysis, carrier strike group tracking, flight monitoring, and RAG-grounded sense-making. Every AI claim cites its sources.
 
-**Product:** [PRD.md](./PRD.md) · **Engineering:** [TDD.md](./TDD.md) · **Cursor:** [.cursorrules](./.cursorrules)
+Built with Electron, React, TypeScript, SQLite, Mapbox, Tailwind CSS, and local/cloud AI.
+
+## What It Does
+
+Intel Board is a desktop application that aggregates open-source intelligence from multiple feeds, detects anomalies and tactical events, tracks military deployments, and uses AI to generate predictions, sense-making analyses, and connections between disparate data points. It's designed for researchers, analysts, and anyone who needs to synthesize information from multiple sources into actionable intelligence.
+
+**Key features:**
+
+### Data Collection
+- **Multi-source ingestion** — GDELT Global Knowledge Graph, RSS feeds, Google News, custom scrapers
+- **USNI Fleet Tracker** — Automated scraping of US Naval Institute's fleet and carrier strike group tracker
+- **The War Zone scraper** — Defense news from TWZ.com with AI-powered extraction
+- **ADS-B/aircraft tracking** — Real-time military aircraft detection via tar1090/AirNav
+- **AIS vessel tracking** — Maritime traffic monitoring with vessel identification
+- **Economic indicators** — Commodity prices, currency data, bond yields
+- **Social media monitoring** — Configurable Twitter/social feed tracking
+
+### Analysis
+- **AI Sense-Making** — Cross-source fusion analysis every 30 minutes. The AI reads all available intel and produces tactical assessments with full citations.
+- **Anomaly Detection** — Statistical baselines for flight activity, shipping patterns, economic metrics. Flags deviations automatically.
+- **Tactical Events** — Automated identification of military aircraft, naval deployments, and significant movements. Category-aware TTL (4h aircraft, 24h naval).
+- **Predictions** — AI generates specific, verifiable predictions from detected anomalies. Self-calibrating: tracks accuracy over time, adjusts confidence based on historical performance, learns from failure patterns.
+- **Prediction Review** — Autonomous review of past predictions using RAG evidence gathering. LLM judges accuracy with cited sources. Calibration data feeds back into future predictions.
+
+### Visualization
+- **Mapbox globe** — Dark-themed 3D globe with layered overlays: carrier strike groups, flight tracks, conflict zones, ship positions, alert zones, transit corridors, custom drawing
+- **Carrier Strike Group tracking** — Live CSG/ARG positions with vessel breakdowns, operating areas, and staleness indicators
+- **Intel Feed** — Tiered feed: active predictions, overdue items, analyzed results. Color-coded by type and urgency.
+- **Alert Rules** — User-defined rules for automatic notifications on keywords, regions, or event types
+
+### AI Features
+- **RAG-grounded chat** — Ask questions about current events, get answers with clickable source citations
+- **Two-slot model config** — Primary + fallback AI models with automatic failover. Supports local Ollama, cloud OpenAI-compatible APIs, or any combination.
+- **World context** — Current world leaders, roles, and geopolitical context injected into AI prompts for accuracy
+- **Connection discovery** — AI identifies links between intel items from different sources
+- **Source verification** — Every AI claim links back to its source document
 
 ## Prerequisites
 
-- **Node.js** [20.19+ or 22.12+](https://electron-vite.org/guide/) (required by electron-vite)
-- **npm** (this repo uses npm; pnpm/yarn work if you adapt commands)
+- **Node.js** 20.19+ or 22.12+ ([required by electron-vite](https://electron-vite.org/))
+- **npm**
+- **Mapbox account** — Free tier works. Get a token at [mapbox.com](https://mapbox.com/)
+- **Ollama** (optional but recommended) — For local AI. Needs a chat model and `nomic-embed-text` for embeddings.
 
-Optional / next milestones:
-
-- **Mapbox** — set `VITE_MAPBOX_TOKEN` in `.env` for the situation map (renderer).
-- **Ollama** with `nomic-embed-text` and a chat model (RAG + LLM).
+Alternative: Any OpenAI-compatible API endpoint (OpenAI, Together, DeepSeek, etc.) works for cloud AI.
 
 ## Setup
 
 ```bash
+git clone https://github.com/w4gon79/intel-board.git
+cd intel-board
 npm install
+
+# Create .env with your tokens
+cp .env.example .env
+# Edit .env: add VITE_MAPBOX_TOKEN, optionally API keys for AI models
+
 npm run dev
 ```
 
-The Electron window should open with the dashboard: **Mapbox** globe (dark style), layer placeholders, feed column, and AI strip.
+The app opens to the situation map with the intelligence feed panel.
 
-Copy [`.env.example`](./.env.example) to `.env` when you add Mapbox or API keys. Vite exposes only variables prefixed with `VITE_` to the renderer.
+### AI Model Configuration
 
-### Mapbox `events.mapbox.com` / `ERR_NAME_NOT_RESOLVED`
+Open Settings (gear icon or drawer) to configure:
 
-Mapbox GL JS sends **usage events** to `events.mapbox.com` (separate from **tiles**, which use `api.mapbox.com`). Many DNS blockers and privacy lists block the events host, which produces `net::ERR_NAME_NOT_RESOLVED` in devtools even when the map renders fine.
+- **Primary Model** — Main AI for analysis, chat, and predictions
+- **Fallback Model** — Used automatically if primary fails
+- **Embedding Model** — For RAG vector search (default: `nomic-embed-text`)
 
-**Fix options (pick one):**
+Models can be local (Ollama), cloud (OpenAI-compatible), or mixed.
 
-1. **Allow the host** on your network (whitelist `events.mapbox.com` in Pi-hole / AdGuard / NextDNS / router, or try another DNS provider).
-2. **Rely on the built-in dev behavior:** in development, the app **short-circuits** those `fetch` calls so the console stays quiet (see `src/renderer/src/lib/mapboxEventsSilencer.ts`). To force real event POSTs while developing, set `VITE_MAPBOX_SILENCE_EVENTS=false` in `.env` and restart dev.
-3. **Production builds:** event requests are sent unless you set `VITE_MAPBOX_SILENCE_EVENTS=true` before `npm run build` (only if you intentionally need to avoid that traffic).
+### Data Sources Configuration
 
-If you pasted a Mapbox token in a public chat or screenshot, **rotate it** in [Mapbox account tokens](https://account.mapbox.com/access-tokens/).
+Configure in Settings:
+- **GDELT API key** — For global news/intelligence feeds
+- **NewsAPI key** — For supplementary news search
+- **RSS feeds** — Custom feed URLs
+- **Social media** — Twitter/social monitoring setup
+
+The app works with partial data sources but more sources = better analysis.
 
 ## Scripts
 
-| Script                            | Purpose                                            |
-| --------------------------------- | -------------------------------------------------- |
-| `npm run dev`                     | Dev: HMR renderer, hot reload main/preload         |
-| `npm run build`                   | Typecheck + production bundles + Electron output   |
-| `npm start`                       | Preview production build (`electron-vite preview`) |
-| `npm run typecheck`               | `tsc --noEmit` for main, preload, renderer         |
-| `npm run lint` / `npm run format` | ESLint / Prettier                                  |
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Dev server with HMR |
+| `npm run build` | Typecheck + production build |
+| `npm start` | Preview production build |
+| `npm run typecheck` | TypeScript check (`tsc --noEmit`) |
 
-Platform installers: `npm run build:win`, `build:mac`, `build:linux` (after `build`).
+Platform installers: `npm run build:win`, `build:mac`, `build:linux`
 
-## Repository layout (current)
-
-Scaffold follows [electron-vite](https://electron-vite.org/) + [@electron-toolkit](https://github.com/alex8088/electron-toolkit):
+## Project Structure
 
 ```
 src/
-  main/index.ts       # Electron main process
-  preload/index.ts    # Preload (context bridge)
+  main/
+    index.ts                     # Electron main process, startup sequence
+    ipc/                         # IPC handlers (predictions, settings, CSG, etc.)
+    services/
+      analysis/
+        predictor.ts             # AI prediction engine with calibration
+        predictionReviewer.ts    # Autonomous prediction review & self-calibration
+        senseMakingEngine.ts     # Cross-source fusion analysis
+      identification/
+        tacticalEngine.ts        # Military event detection & classification
+      ingestion/
+        pipeline.ts              # Multi-source data ingestion
+      rag/
+        llm.ts                   # Two-slot LLM service (primary + fallback)
+        vectordb.ts              # Vector search for RAG
+      csg/
+        csgService.ts            # Carrier strike group orchestration
+        usniScraper.ts           # USNI fleet tracker scraper + AI parser
+        twzScraper.ts            # The War Zone defense news scraper
+        aisMatcher.ts            # AIS vessel matching (disabled for CSG)
+      economic/
+        economicService.ts       # Commodity/currency/bond tracking
+      storage/
+        database.ts              # SQLite setup, migrations
+        dbService.ts             # Query functions for all domains
+        vectordb.ts              # Vector embedding storage & search
   renderer/src/
-    components/layout/   # AppShell, header, status bar, feed panel, AI strip
-    components/map/      # SituationMap, LayerControls
-resources/icon.png
-electron.vite.config.ts
-electron-builder.yml
+    components/
+      layout/                    # AppShell, header, feed panel, AI strip
+      map/                       # SituationMap, layer controls, overlays
+      feed/                      # IntelFeedCard, PredictionCard
+      settings/                  # Settings panels, AI config
+      source/                    # Source citation panel
+  shared/
+    types.ts                     # Shared TypeScript types
 ```
 
-Ingestion, SQLite, ChromaDB, and RAG will live in the **main** process (and shared types) as described in [TDD.md](./TDD.md); the renderer talks to main via IPC.
+## Database
 
-## Implementation status
+SQLite via `better-sqlite3`. Auto-migrated on startup. Key tables:
 
-| Step                                    | Status                                   |
-| --------------------------------------- | ---------------------------------------- |
-| 1. Electron + React + Vite + Tailwind   | Done                                     |
-| 2. Mapbox situation map + shell + CSP   | Done                                     |
-| 3–12. SQLite, news, RAG, feed, ADS-B, … | Planned ([.cursorrules](./.cursorrules)) |
+- `intel_items` — All ingested intelligence with TTL and dedup
+- `tactical_events` — Detected military events (aircraft, naval)
+- `carrier_groups` / `carrier_group_vessels` — CSG/ARG tracking
+- `predictions` / `prediction_reviews` — Prediction + self-calibration
+- `prediction_calibration` — Accuracy tracking by category/region
+- `anomalies` / `baseline_stats` — Statistical anomaly detection
+- `articles` — Stored news articles
+- `flights` / `vessels` — Real-time tracking data
+- `alert_rules` — User-defined notification rules
+- `economic_indicators` — Price/yield data
+
+All data lives in `data/intel-board.db`.
+
+## Architecture Notes
+
+- **ISO 8601 timestamps** — All datetime columns store ISO 8601 format. SQL comparisons must wrap columns in `datetime()` for correct comparison against `datetime('now')`.
+- **Self-calibrating predictions** — The predictor sees its own accuracy history and adjusts confidence. Categories with <25% accuracy skip predictions entirely. Failure patterns are analyzed and stored.
+- **Layered event detection** — Raw data flows through tactical engine → anomaly detection → sense-making → predictions, each layer building on the last.
+- **CSG data is USNI-only** — Carrier strike group positions come exclusively from USNI/TWZ intel, not AIS (military AIS is unreliable).
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Framework | Electron + electron-vite |
+| UI | React + TypeScript + Tailwind CSS |
+| Database | SQLite (better-sqlite3) |
+| Map | Mapbox GL JS |
+| AI | Ollama (local) and/or OpenAI-compatible APIs |
+| Vector Search | JSON-stored embeddings + cosine similarity |
+| Scraping | Custom HTTP + AI-powered extraction |
+| Data Sources | GDELT, RSS, Google News, ADS-B, AIS |
 
 ## License
 
-Private / unlicensed unless you add a `LICENSE` file.
+Private. Contact the author for licensing inquiries.
