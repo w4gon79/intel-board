@@ -4,5 +4,5 @@ declare module '*.css' {
   export default css
 }
 
-// Allow side-effect imports of CSS files from within node_modules (e.g. mapbox-gl)
-declare module 'mapbox-gl/dist/mapbox-gl.css'
+// Allow side-effect imports of CSS files from within node_modules (e.g. maplibre-gl)
+declare module 'maplibre-gl/dist/maplibre-gl.css'

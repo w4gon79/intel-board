@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import type { Map as MapboxMap, GeoJSONSource } from 'mapbox-gl'
+import type { Map as MapboxMap, GeoJSONSource } from 'maplibre-gl'
 import type { CarrierGroupWithVessels } from '../../../../shared/types'
 
 // ── Layer / source IDs ──────────────────────────────────────
@@ -231,14 +231,13 @@ export default function CarrierLayer({
         type: 'circle',
         source: SOURCE_ID,
         paint: {
-          'circle-radius': {
-            stops: [
-              [0, 8],    // Very zoomed out: ~8px
-              [3, 20],   // Zoomed out: ~20px
-              [6, 50],   // Medium zoom: ~50px
-              [10, 150], // Closer zoom: ~150px
-            ]
-          },
+          'circle-radius': [
+            'interpolate', ['linear'], ['zoom'],
+            0, 8,
+            3, 20,
+            6, 50,
+            10, 150
+          ] as unknown as number,
           'circle-color': [
             'match',
             ['get', 'status'],

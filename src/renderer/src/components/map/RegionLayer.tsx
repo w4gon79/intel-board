@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useRef } from 'react'
-import mapboxgl from 'mapbox-gl'
+import maplibregl from 'maplibre-gl'
 import { REGION_AREAS } from '../../../../shared/regions'
 
 const SOURCE_ID = 'regions'
@@ -14,7 +14,7 @@ const OUTLINE_LAYER_ID = 'regions-outline'
 const LABEL_LAYER_ID = 'regions-labels'
 
 interface RegionLayerProps {
-  map: mapboxgl.Map
+  map: maplibregl.Map
   visible: boolean
 }
 
@@ -110,7 +110,7 @@ export function RegionLayer({ map, visible }: RegionLayerProps): React.JSX.Eleme
           const lat = (region.minLat + region.maxLat) / 2
           const lon = (region.minLon + region.maxLon) / 2
 
-          new mapboxgl.Popup({
+          new maplibregl.Popup({
             closeButton: true,
             offset: 8,
             maxWidth: '200px',

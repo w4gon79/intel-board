@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import type { Map as MapboxMap, GeoJSONSource } from 'mapbox-gl'
+import type { Map as MapboxMap, GeoJSONSource } from 'maplibre-gl'
 import type { FlightMarker } from '../../../../shared/types'
 import { useGeojsonWorker } from '../../hooks/useGeojsonWorker'
 
@@ -406,12 +406,11 @@ export default function FlightLayer({
           const clusterId = features[0].properties?.cluster_id
           if (clusterId == null) return
           const source = map.getSource(MAIN_SOURCE_ID) as GeoJSONSource
-          source.getClusterExpansionZoom(clusterId, (_err, zoom) => {
-            if (_err || zoom == null) return
+          source.getClusterExpansionZoom(clusterId).then((zoom) => {
             const coords = (features[0].geometry as unknown as { coordinates: [number, number] })
               .coordinates
             map.easeTo({ center: coords, zoom })
-          })
+          }).catch(() => { /* ignore */ })
         })
       }
 

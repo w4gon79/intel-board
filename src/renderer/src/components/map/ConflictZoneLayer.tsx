@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { Map } from 'mapbox-gl'
+import type { Map } from 'maplibre-gl'
 import conflictZones from '../../../../main/services/identification/data/conflict-zones.json'
 
 interface Props {

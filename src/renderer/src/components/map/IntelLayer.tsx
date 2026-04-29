@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import type { Map as MapboxMap, GeoJSONSource } from 'mapbox-gl'
+import type { Map as MapboxMap, GeoJSONSource } from 'maplibre-gl'
 import type { IntelItem, IntelTier } from '../../../../shared/types'
 import { useIntelHighlight } from '../../contexts/IntelHighlightContext'
 

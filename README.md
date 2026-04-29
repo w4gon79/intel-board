@@ -2,7 +2,7 @@
 
 Real-time OSINT intelligence dashboard with AI-powered analysis, carrier strike group tracking, flight monitoring, and RAG-grounded sense-making. Every AI claim cites its sources.
 
-Built with Electron, React, TypeScript, SQLite, Mapbox, Tailwind CSS, and local/cloud AI.
+Built with Electron, React, TypeScript, SQLite, MapLibre, Tailwind CSS, and local/cloud AI.
 
 ## What It Does
 
@@ -27,7 +27,7 @@ Intel Board is a desktop application that aggregates open-source intelligence fr
 - **Prediction Review** — Autonomous review of past predictions using RAG evidence gathering. LLM judges accuracy with cited sources. Calibration data feeds back into future predictions.
 
 ### Visualization
-- **Mapbox globe** — Dark-themed 3D globe with layered overlays: carrier strike groups, flight tracks, conflict zones, ship positions, alert zones, transit corridors, custom drawing
+- **MapLibre dark map** — Dark-themed map with layered overlays: carrier strike groups, flight tracks, conflict zones, ship positions, alert zones, transit corridors, custom drawing. Uses free CARTO/OpenStreetMap tiles (no API key needed).
 - **Carrier Strike Group tracking** — Live CSG/ARG positions with vessel breakdowns, operating areas, and staleness indicators
 - **Intel Feed** — Tiered feed: active predictions, overdue items, analyzed results. Color-coded by type and urgency.
 - **Alert Rules** — User-defined rules for automatic notifications on keywords, regions, or event types
@@ -43,7 +43,6 @@ Intel Board is a desktop application that aggregates open-source intelligence fr
 
 - **Node.js** 20.19+ or 22.12+ ([required by electron-vite](https://electron-vite.org/))
 - **npm**
-- **Mapbox account** — Free tier works. Get a token at [mapbox.com](https://mapbox.com/)
 - **Ollama** (optional but recommended) — For local AI. Needs a chat model and `nomic-embed-text` for embeddings.
 
 Alternative: Any OpenAI-compatible API endpoint (OpenAI, Together, DeepSeek, etc.) works for cloud AI.
@@ -57,7 +56,7 @@ npm install
 
 # Create .env with your tokens
 cp .env.example .env
-# Edit .env: add VITE_MAPBOX_TOKEN, optionally API keys for AI models
+# Edit .env: add API keys for news, AI models, etc. (no map token needed!)
 
 npm run dev
 ```
@@ -167,7 +166,7 @@ All data lives in `data/intel-board.db`.
 | Framework | Electron + electron-vite |
 | UI | React + TypeScript + Tailwind CSS |
 | Database | SQLite (better-sqlite3) |
-| Map | Mapbox GL JS |
+| Map | MapLibre GL JS + CARTO dark tiles (free, no API key) |
 | AI | Ollama (local) and/or OpenAI-compatible APIs |
 | Vector Search | JSON-stored embeddings + cosine similarity |
 | Scraping | Custom HTTP + AI-powered extraction |

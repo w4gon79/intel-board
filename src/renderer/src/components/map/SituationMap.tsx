@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import mapboxgl from 'mapbox-gl'
-import 'mapbox-gl/dist/mapbox-gl.css'
-import { installMapboxEventsFetchSilencer } from '../../lib/mapboxEventsSilencer'
+import maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
 import { setBriefHandler } from '../../lib/mapBrief'
 import ConflictZoneLayer from './ConflictZoneLayer'
 import FlightLayer from './FlightLayer'
@@ -16,7 +15,33 @@ import { MapDrawLayer } from './MapDrawLayer'
 import { AlertZoneLayer } from './AlertZoneLayer'
 import type { LayerVisibility } from './LayerControls'
 
-const MAP_STYLE = 'mapbox://styles/mapbox/dark-v11'
+/** CARTO dark basemap tiles – free, no API key, dark theme. */
+const MAP_STYLE = {
+  version: 8 as const,
+  sources: {
+    'osm-tiles': {
+      type: 'raster' as const,
+      tiles: [
+        'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+        'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+        'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
+      ],
+      tileSize: 256,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }
+  },
+  layers: [
+    {
+      id: 'osm-tiles-layer',
+      type: 'raster' as const,
+      source: 'osm-tiles',
+      minzoom: 0,
+      maxzoom: 19
+    }
+  ]
+}
+
 /** Center: Eastern Mediterranean / broader MENA (PRD-style "situation" view). */
 const DEFAULT_CENTER: [number, number] = [28, 22]
 const DEFAULT_ZOOM = 1.5
@@ -32,35 +57,27 @@ const REGIONS: Record<string, { label: string; center: [number, number]; zoom: n
   oceania:  { label: 'Oceania',        center: [135, -25],  zoom: 3.5 }
 }
 
-type ProjectionName = 'globe' | 'mercator'
-
 interface SituationMapProps {
   layers?: LayerVisibility
 }
 
 export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<mapboxgl.Map | null>(null)
-  const briefPopupRef = useRef<mapboxgl.Popup | null>(null)
+  const mapRef = useRef<maplibregl.Map | null>(null)
+  const briefPopupRef = useRef<maplibregl.Popup | null>(null)
   const [mapReady, setMapReady] = useState(false)
   const [cursorCoords, setCursorCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [drawBanner, setDrawBanner] = useState<string | null>(null)
 
-  const token = import.meta.env.VITE_MAPBOX_TOKEN?.trim() ?? ''
-
   useEffect(() => {
-    if (!token || !containerRef.current) return
+    if (!containerRef.current) return
 
-    const restoreFetch = installMapboxEventsFetchSilencer()
-
-    mapboxgl.accessToken = token
-
-    const map = new mapboxgl.Map({
+    const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE,
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
-      attributionControl: true
+      attributionControl: undefined
     })
 
     mapRef.current = map
@@ -68,21 +85,14 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
     // Register draw banner callback for MapDrawLayer
     ;(window as any).__alertDrawBanner = (msg: string | null) => setDrawBanner(msg)
 
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'top-right')
-    map.addControl(new mapboxgl.ScaleControl({ maxWidth: 100, unit: 'metric' }), 'bottom-left')
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
+    map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }), 'bottom-left')
 
-    let globeApplied = false
-    const applyGlobeAndView = (): void => {
-      if (globeApplied) return
-      globeApplied = true
-      map.setProjection({ name: 'mercator' })
-      // Fog only applied when user switches to globe via handleProjectionChange
+    map.on('load', () => {
       setMapReady(true)
-    }
+    })
 
-    map.on('style.load', applyGlobeAndView)
-
-    map.on('mousemove', (e: mapboxgl.MapMouseEvent) => {
+    map.on('mousemove', (e: maplibregl.MapMouseEvent) => {
       setCursorCoords({ lat: e.lngLat.lat, lng: e.lngLat.lng })
     })
 
@@ -101,7 +111,6 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
     return () => {
       window.removeEventListener('resize', resize)
       ro.disconnect()
-      map.off('style.load', applyGlobeAndView)
       map.remove()
       mapRef.current = null
       ;(window as any).__map = null
@@ -109,9 +118,8 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
       ;(window as any).__alertDrawStart = null
       setDrawBanner(null)
       setMapReady(false)
-      restoreFetch()
     }
-  }, [token])
+  }, [])
 
   // ── Inject spinner animation CSS once ──
   useEffect(() => {
@@ -140,7 +148,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
 
       // Show loading popup immediately
       if (briefPopupRef.current) briefPopupRef.current.remove()
-      briefPopupRef.current = new mapboxgl.Popup({
+      briefPopupRef.current = new maplibregl.Popup({
         offset: 25,
         closeButton: true,
         maxWidth: '350px',
@@ -194,21 +202,6 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
     })
   }, [mapReady])
 
-  if (!token) {
-    return (
-      <div className="flex h-full min-h-[240px] flex-col items-center justify-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/80 p-6 text-center">
-        <p className="text-sm font-medium text-zinc-300">Mapbox token missing</p>
-        <p className="max-w-sm text-xs text-zinc-500">
-          Add{' '}
-          <code className="rounded bg-zinc-800 px-1 py-0.5 text-zinc-300">VITE_MAPBOX_TOKEN</code>{' '}
-          to <code className="rounded bg-zinc-800 px-1 py-0.5 text-zinc-300">.env</code> at the
-          project root, then restart{' '}
-          <code className="rounded bg-zinc-800 px-1 py-0.5 text-zinc-300">npm run dev</code>.
-        </p>
-      </div>
-    )
-  }
-
   const showAdsb = layers?.adsb ?? true
   const showAis = layers?.ais ?? true
   const showCsg = layers?.csg ?? true
@@ -221,7 +214,6 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
   const [showAllFlights, setShowAllFlights] = useState(true)
   const [showAllVessels, setShowAllVessels] = useState(true)
   const [clustering, setClustering] = useState(true)
-  const [projection, setProjection] = useState<ProjectionName>('mercator')
   const [region, setRegion] = useState('global')
 
   const refreshSettings = useCallback(() => {
@@ -238,29 +230,6 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
         /* ignore */
       })
   }, [])
-
-  const handleProjectionChange = useCallback(
-    (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const p = e.target.value as ProjectionName
-      setProjection(p)
-      const map = mapRef.current
-      if (!map) return
-      if (p === 'globe') {
-        map.setProjection({ name: 'globe' })
-        map.setFog({
-          color: 'rgb(12, 12, 20)',
-          'high-color': 'rgb(36, 92, 223)',
-          'horizon-blend': 0.08,
-          'space-color': 'rgb(10, 10, 18)',
-          'star-intensity': 0.12
-        })
-      } else {
-        map.setProjection({ name: 'mercator' })
-        map.setFog(undefined)
-      }
-    },
-    []
-  )
 
   const handleRegionChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -294,7 +263,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
     <div className="relative z-50 h-full min-h-[240px] w-full min-w-0">
       {/* ── Brief popup styling ── */}
       <style>{`
-        .brief-popup .mapboxgl-popup-content {
+        .brief-popup .maplibregl-popup-content {
           background: #18181b;
           border: 1px solid #2563eb;
           border-radius: 8px;
@@ -307,14 +276,6 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
       {/* ── Map overlay controls (top-left) ── */}
       {mapReady && (
         <div className="absolute left-2.5 top-2.5 z-10 flex items-center gap-1.5">
-          <select
-            value={projection}
-            onChange={handleProjectionChange}
-            className="h-7 rounded border border-zinc-700/60 bg-zinc-900/80 px-2 text-[11px] text-zinc-300 backdrop-blur-sm outline-none transition-colors hover:border-zinc-600 focus:border-zinc-500"
-          >
-            <option value="globe">🌐 Globe</option>
-            <option value="mercator">🗺 Mercator</option>
-          </select>
           <select
             value={region}
             onChange={handleRegionChange}

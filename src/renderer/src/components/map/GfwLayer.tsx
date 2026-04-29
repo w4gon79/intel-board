@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import mapboxgl from 'mapbox-gl'
+import maplibregl from 'maplibre-gl'
 
 // ─── Layer / source IDs ──────────────────────────────────────
 
@@ -52,7 +52,7 @@ const EMPTY_FC: GfwFeatureCollection = { type: 'FeatureCollection', features: []
 // ─── Props ───────────────────────────────────────────────────
 
 interface GfwLayerProps {
-  map: mapboxgl.Map | null
+  map: maplibregl.Map | null
   visible?: boolean
   showSar?: boolean
 }
@@ -65,7 +65,7 @@ export default function GfwLayer({
   showSar = true
 }: GfwLayerProps): React.JSX.Element {
   const [data, setData] = useState<GfwFeatureCollection>(EMPTY_FC)
-  const popupRef = useRef<mapboxgl.Popup | null>(null)
+  const popupRef = useRef<maplibregl.Popup | null>(null)
   const sourcesAddedRef = useRef(false)
 
   // ── Fetch GFW data via IPC (Electron) or HTTP (browser) ──────
@@ -298,7 +298,7 @@ export default function GfwLayer({
         const coords = (features[0].geometry as unknown as { coordinates: [number, number] }).coordinates
 
         if (popupRef.current) popupRef.current.remove()
-        popupRef.current = new mapboxgl.Popup({
+        popupRef.current = new maplibregl.Popup({
           offset: 10,
           closeButton: true,
           maxWidth: '300px'
@@ -347,12 +347,12 @@ export default function GfwLayer({
     const presenceFeatures = data.features.filter((f) => f.properties.dataset === 'presence')
     const sarFeatures = data.features.filter((f) => f.properties.dataset === 'sar')
 
-    const presenceSource = map.getSource(PRESENCE_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
+    const presenceSource = map.getSource(PRESENCE_SOURCE_ID) as maplibregl.GeoJSONSource | undefined
     if (presenceSource) {
       presenceSource.setData({ type: 'FeatureCollection', features: presenceFeatures })
     }
 
-    const sarSource = map.getSource(SAR_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined
+    const sarSource = map.getSource(SAR_SOURCE_ID) as maplibregl.GeoJSONSource | undefined
     if (sarSource) {
       sarSource.setData({ type: 'FeatureCollection', features: sarFeatures })
     }

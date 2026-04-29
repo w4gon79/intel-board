@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useRef } from 'react'
-import mapboxgl from 'mapbox-gl'
+import maplibregl from 'maplibre-gl'
 import type { CarrierGroupWithVessels } from '../../../../shared/types'
 import {
   ALL_CIV_LAYER_IDS,
@@ -42,7 +42,7 @@ type FeatureType = 'ship' | 'csg' | 'intel' | 'flight'
 interface TypedFeature {
   type: FeatureType
   layerId: string
-  feature: mapboxgl.MapboxGeoJSONFeature
+  feature: maplibregl.MapGeoJSONFeature
 }
 
 // ─── All clickable (non-cluster) layer IDs ───────────────────
@@ -68,7 +68,7 @@ const TYPE_ICONS: Record<FeatureType, string> = {
 
 // ─── Helpers ─────────────────────────────────────────────────
 
-function classifyFeature(f: mapboxgl.MapboxGeoJSONFeature): FeatureType {
+function classifyFeature(f: maplibregl.MapGeoJSONFeature): FeatureType {
   const lid = f.layer?.id ?? ''
   if (ALL_CIV_LAYER_IDS.includes(lid as typeof ALL_CIV_LAYER_IDS[number]) || lid === SHIP_MILITARY_LAYER_ID) return 'ship'
   if (lid === CARRIER_MARKER_LAYER_ID) return 'csg'
@@ -195,20 +195,20 @@ function buildMultiPopupHtml(
 // ─── Props ───────────────────────────────────────────────────
 
 interface UnifiedMapPopupProps {
-  map: mapboxgl.Map | null
+  map: maplibregl.Map | null
 }
 
 // ─── Component ───────────────────────────────────────────────
 
 export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JSX.Element {
-  const popupRef = useRef<mapboxgl.Popup | null>(null)
+  const popupRef = useRef<maplibregl.Popup | null>(null)
   const featuresRef = useRef<TypedFeature[]>([])
   const selectedRef = useRef<number>(0)
 
   useEffect(() => {
     if (!map) return
 
-    const handleClick = async (e: mapboxgl.MapMouseEvent): Promise<void> => {
+    const handleClick = async (e: maplibregl.MapMouseEvent): Promise<void> => {
       // Query all clickable layers at the click point
       const allFeatures = map.queryRenderedFeatures(e.point, {
         layers: CLICKABLE_LAYER_IDS
@@ -262,7 +262,7 @@ export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JS
               typedFeatures.push({
                 type: 'csg',
                 layerId: CARRIER_MARKER_LAYER_ID,
-                feature: f
+                feature: f as maplibregl.MapGeoJSONFeature
               })
               existingCsgIds.add((f.properties as Record<string, unknown>).id as string)
             }
@@ -290,7 +290,7 @@ export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JS
           html = buildDetailHtml(tf)
         }
 
-        popupRef.current = new mapboxgl.Popup({
+        popupRef.current = new maplibregl.Popup({
           offset: 12,
           closeButton: true,
           maxWidth: '320px'
@@ -307,7 +307,7 @@ export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JS
 
         const html = buildMultiPopupHtml(typedFeatures, 0)
 
-        popupRef.current = new mapboxgl.Popup({
+        popupRef.current = new maplibregl.Popup({
           offset: 12,
           closeButton: true,
           maxWidth: '340px'
@@ -344,7 +344,7 @@ export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JS
       }
     }
 
-    const attachBriefListeners = (popup: mapboxgl.Popup): void => {
+    const attachBriefListeners = (popup: maplibregl.Popup): void => {
       setTimeout(() => {
         const popupEl = popup?.getElement()
         if (!popupEl) return

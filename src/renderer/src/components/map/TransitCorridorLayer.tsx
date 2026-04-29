@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useRef } from 'react'
-import mapboxgl from 'mapbox-gl'
+import maplibregl from 'maplibre-gl'
 import { TRANSIT_CORRIDORS } from '../../../../shared/regions'
 
 const SOURCE_ID = 'transit-corridors'
@@ -13,7 +13,7 @@ const OUTLINE_LAYER_ID = 'transit-corridors-outline'
 const LABEL_LAYER_ID = 'transit-corridors-labels'
 
 interface TransitCorridorLayerProps {
-  map: mapboxgl.Map
+  map: maplibregl.Map
   visible: boolean
 }
 
@@ -46,7 +46,7 @@ function buildCorridorGeoJSON(): GeoJSON.FeatureCollection {
 
 export function TransitCorridorLayer({ map, visible }: TransitCorridorLayerProps): React.JSX.Element {
   const addedRef = useRef(false)
-  const popupRef = useRef<mapboxgl.Popup | null>(null)
+  const popupRef = useRef<maplibregl.Popup | null>(null)
 
   useEffect(() => {
     if (!map || map.getStyle() === undefined) return
@@ -117,7 +117,7 @@ export function TransitCorridorLayer({ map, visible }: TransitCorridorLayerProps
           const briefData = encodeURIComponent(JSON.stringify({ name, lat, lon, status: 'active' }))
 
           if (popupRef.current) popupRef.current.remove()
-          const popup = new mapboxgl.Popup({
+          const popup = new maplibregl.Popup({
             closeButton: true,
             offset: 8,
             maxWidth: '260px',

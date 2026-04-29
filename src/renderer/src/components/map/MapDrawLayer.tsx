@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useRef } from 'react'
-import type { Map as MapboxMap, GeoJSONSource, MapMouseEvent } from 'mapbox-gl'
+import type { Map as MapboxMap, GeoJSONSource, MapMouseEvent } from 'maplibre-gl'
 
 // ── Types ────────────────────────────────────────────────────
 
