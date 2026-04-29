@@ -71,7 +71,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
 
       {/* Drawer */}
-      <aside className="fixed right-0 top-0 z-50 flex h-full w-96 flex-col border-l border-zinc-800 bg-zinc-950/95 backdrop-blur-sm">
+      <aside className="fixed right-0 top-0 z-50 flex h-full w-full max-w-sm flex-col border-l border-zinc-800 bg-zinc-950/95 backdrop-blur-sm sm:w-96">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
           <h2 className="text-sm font-semibold text-zinc-100">Settings</h2>

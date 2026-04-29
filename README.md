@@ -49,6 +49,22 @@ Alternative: Any OpenAI-compatible API endpoint (OpenAI, Together, DeepSeek, etc
 
 ## Setup
 
+### Prerequisites (Windows)
+
+1. **Node.js 22+** — Download from [nodejs.org](https://nodejs.org). LTS recommended.
+2. **Git** — Download from [git-scm.com](https://git-scm.com)
+3. **Python 3.8+** — Required by `better-sqlite3` native build. Download from [python.org](https://python.org). Make sure "Add Python to PATH" is checked during install.
+4. **Visual Studio Build Tools** — Required for native module compilation. Install one of:
+   - **Visual Studio 2022 Community** (free) with "Desktop development with C++" workload, OR
+   - **Build Tools for Visual Studio 2022** (lighter) from [visualstudio.microsoft.com](https://visualstudio.microsoft.com/visual-cpp-build-tools/) — select "Desktop development with C++"
+5. **Ollama** (optional but recommended) — Local AI inference. Download from [ollama.com](https://ollama.com). After install, pull at least one model:
+   ```bash
+   ollama pull nomic-embed-text   # Embedding model (required for RAG)
+   ollama pull qwen2.5:3b         # Chat model
+   ```
+
+### Quick Start
+
 ```bash
 git clone https://github.com/w4gon79/intel-board.git
 cd intel-board
@@ -59,6 +75,13 @@ npm run dev
 The app opens to the situation map with the intelligence feed panel.
 
 On first launch, open **Settings** (gear icon) to configure your API keys. The app works with partial configuration but more sources = better analysis.
+
+### Remote Access (Phone/Browser)
+
+The HTTP server starts automatically on port 8902. Access the dashboard from any device on your network:
+```
+http://<your-ip>:8902
+```
 
 ## Configuration
 

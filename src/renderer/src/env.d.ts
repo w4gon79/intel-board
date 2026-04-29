@@ -44,6 +44,9 @@ interface Window {
       getRecent: (limit?: number, offset?: number) => Promise<SharedTypes['IntelItem']>
       getCount: () => Promise<number>
       getCountByTier: () => Promise<Record<SharedTypes['IntelTier'], number>>
+      deleteByTitle: (pattern: string) => Promise<{ success: boolean; deleted?: number }>
+      deleteOlderThan: (hours: number) => Promise<{ success: boolean; deleted?: number }>
+      deleteByIds: (ids: string[]) => Promise<{ success: boolean; deleted?: number }>
     }
 
     // ── Anomalies ──
@@ -55,6 +58,7 @@ interface Window {
     // ── Predictions ──
     predictions: {
       getUnresolved: (limit?: number) => Promise<SharedTypes['Prediction'][]>
+      getWithReviews: (limit?: number) => Promise<unknown[]>
       review: (id: string, outcome: string, wasAccurate: boolean) => Promise<boolean>
       getAccuracy: () => Promise<{
         total: number
@@ -63,6 +67,7 @@ interface Window {
         inaccurate: number
         accuracyRate: number
       }>
+      getReviewStats: () => Promise<unknown>
     }
 
     // ── RAG Pipeline ──
@@ -91,6 +96,11 @@ interface Window {
         content: string; sources: string | null
         confidence: number | null; created_at: string
       }>>
+      brief: (request: { type: string; data: Record<string, unknown> }) => Promise<{
+        success: boolean
+        answer: string
+        sources?: unknown[]
+      }>
     }
 
     // ── Settings ──
@@ -101,6 +111,7 @@ interface Window {
       testConnection: (baseUrl?: string) => Promise<{ ok: boolean; error?: string }>
       testOpenaiConnection: (baseUrl: string, apiKey: string) => Promise<{ ok: boolean; error?: string }>
       testAI: (config: { provider: string; ollamaBaseUrl?: string; openaiBaseUrl?: string; openaiApiKey?: string }) => Promise<{ ok: boolean; error?: string; models?: number }>
+      testApiKey: (service: string) => Promise<{ ok: boolean; error?: string }>
     }
 
     // ── ADS-B ──

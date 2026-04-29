@@ -11,7 +11,8 @@ import express, { type Request, type Response } from 'express'
 import { join } from 'path'
 import { readFileSync, readdirSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
-import { loadSettings, loadSettingsMasked, type AppSettings } from '../../ipc/settings.handlers'
+import { loadSettings, loadSettingsMasked, saveSettings as persistSettings, mergeApiKeys, type AppSettings } from '../../ipc/settings.handlers'
+import { config, reloadConfigFromSettings } from '../../utils/config'
 import { getDatabase } from '../storage/database'
 import { getDatabaseStatus } from '../storage/database'
 import { getVectorStoreStatus } from '../storage/vectordb'
@@ -114,11 +115,145 @@ export class RemoteServer {
 
     app.post('/api/settings', (req: Request, res: Response) => {
       try {
-        const { saveSettings } = require('../../ipc/settings.handlers')
-        saveSettings(req.body as AppSettings)
+        const incoming = req.body as AppSettings
+        const previous = loadSettings()
+        const merged: AppSettings = {
+          ...incoming,
+          apiKeys: mergeApiKeys(incoming.apiKeys, previous.apiKeys)
+        }
+        persistSettings(merged)
+        reloadConfigFromSettings(merged)
+
+        // Start/stop remote server if setting changed
+        try {
+          if (merged.remoteServer?.enabled && !previous.remoteServer?.enabled) {
+            remoteServer.start(merged.remoteServer.port).catch(console.error)
+          } else if (!merged.remoteServer?.enabled && previous.remoteServer?.enabled) {
+            remoteServer.stop().catch(console.error)
+          } else if (
+            merged.remoteServer?.enabled &&
+            merged.remoteServer.port !== previous.remoteServer?.port
+          ) {
+            remoteServer.stop().then(() => remoteServer.start(merged.remoteServer.port)).catch(console.error)
+          }
+        } catch (remoteErr) {
+          console.warn('[HTTP] Remote server toggle error:', remoteErr)
+        }
+
         res.json({ success: true })
       } catch (err) {
         res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'Save failed' })
+      }
+    })
+
+    app.post('/api/settings/test-ai', async (req: Request, res: Response) => {
+      try {
+        const testConfig = req.body as { provider: string; ollamaBaseUrl?: string; openaiBaseUrl?: string; openaiApiKey?: string }
+        if (testConfig.provider === 'local' || testConfig.provider === 'ollama-cloud') {
+          const url = testConfig.ollamaBaseUrl || config.ollamaBaseUrl
+          const tagUrl = `${url.replace(/\/$/, '')}/api/tags`
+          const resp = await fetch(tagUrl, { signal: AbortSignal.timeout(5000) })
+          if (resp.ok) {
+            const body = (await resp.json()) as { models?: unknown[] }
+            res.json({ ok: true, models: body.models?.length ?? 0 })
+          } else {
+            res.json({ ok: false, error: `HTTP ${resp.status}` })
+          }
+        } else if (testConfig.provider === 'openai-compatible') {
+          if (!testConfig.openaiBaseUrl || !testConfig.openaiApiKey) {
+            res.json({ ok: false, error: 'Base URL and API Key required' })
+            return
+          }
+          const url = `${testConfig.openaiBaseUrl.replace(/\/$/, '')}/models`
+          const resp = await fetch(url, {
+            headers: { Authorization: `Bearer ${testConfig.openaiApiKey}` },
+            signal: AbortSignal.timeout(5000)
+          })
+          if (resp.ok) {
+            try {
+              const body = (await resp.json()) as { data?: unknown[] }
+              res.json({ ok: true, models: body.data?.length ?? 0 })
+            } catch {
+              res.json({ ok: true, models: 0 })
+            }
+          } else {
+            res.json({ ok: false, error: `HTTP ${resp.status}` })
+          }
+        } else {
+          res.json({ ok: false, error: `Unknown provider: ${testConfig.provider}` })
+        }
+      } catch (err) {
+        res.json({ ok: false, error: err instanceof Error ? err.message : 'Connection failed' })
+      }
+    })
+
+    app.post('/api/settings/test-openai-connection', async (req: Request, res: Response) => {
+      try {
+        const { baseUrl, apiKey } = req.body as { baseUrl: string; apiKey: string }
+        if (!baseUrl || !apiKey) { res.json({ ok: false, error: 'Base URL and API Key required' }); return }
+        const url = `${baseUrl.replace(/\/$/, '')}/models`
+        const resp = await fetch(url, {
+          headers: { Authorization: `Bearer ${apiKey}` },
+          signal: AbortSignal.timeout(5000)
+        })
+        if (resp.ok) { res.json({ ok: true }) } else { res.json({ ok: false, error: `HTTP ${resp.status}` }) }
+      } catch (err) {
+        res.json({ ok: false, error: err instanceof Error ? err.message : 'Connection failed' })
+      }
+    })
+
+    app.post('/api/settings/test-api-key', async (req: Request, res: Response) => {
+      try {
+        const { service } = req.body as { service: string }
+        const settings = loadSettings()
+        switch (service) {
+          case 'news': {
+            const key = settings.apiKeys.newsApiKey
+            if (!key) { res.json({ ok: false, error: 'No key configured' }); return }
+            const resp = await fetch(`https://newsapi.org/v2/top-headlines?country=us&pageSize=1&apiKey=${key}`, { signal: AbortSignal.timeout(8000) })
+            const body = (await resp.json()) as { status?: string; code?: string }
+            if (body.status === 'ok') { res.json({ ok: true }) } else { res.json({ ok: false, error: body.code ?? `HTTP ${resp.status}` }) }
+            break
+          }
+          case 'opensky': {
+            const user = settings.apiKeys.openskyUsername
+            const pass = settings.apiKeys.openskyPassword
+            if (!user || !pass) { res.json({ ok: false, error: 'Username and password required' }); return }
+            const resp = await fetch('https://opensky-network.org/api/states/all?lamin=45&lamax=46&lomin=5&lomax=6&limit=1', {
+              headers: { Authorization: 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64') },
+              signal: AbortSignal.timeout(10000)
+            })
+            if (resp.ok) { res.json({ ok: true }) } else if (resp.status === 401) { res.json({ ok: false, error: 'Invalid credentials' }) } else { res.json({ ok: false, error: `HTTP ${resp.status}` }) }
+            break
+          }
+          case 'aisstream': {
+            const key = settings.apiKeys.aisstreamApiKey
+            if (!key) { res.json({ ok: false, error: 'No key configured' }); return }
+            if (key.length >= 20) { res.json({ ok: true }) } else { res.json({ ok: false, error: 'Key too short' }) }
+            break
+          }
+          case 'gfw': {
+            const token = settings.apiKeys.gfwApiToken
+            if (!token) { res.json({ ok: false, error: 'No token configured' }); return }
+            const resp = await fetch('https://gateway.api.globalfishingwatch.org/v3/4wings/report', {
+              headers: { Authorization: `Bearer ${token}` },
+              signal: AbortSignal.timeout(10000)
+            })
+            if (resp.status === 401 || resp.status === 403) { res.json({ ok: false, error: 'Invalid or expired token' }) } else { res.json({ ok: true }) }
+            break
+          }
+          case 'fred': {
+            const key = settings.apiKeys.fredApiKey
+            if (!key) { res.json({ ok: false, error: 'No key configured' }); return }
+            const resp = await fetch(`https://api.stlouisfed.org/fred/series/updates?api_key=${key}&file_type=json&limit=1`, { signal: AbortSignal.timeout(8000) })
+            if (resp.ok) { res.json({ ok: true }) } else { res.json({ ok: false, error: `HTTP ${resp.status}` }) }
+            break
+          }
+          default:
+            res.json({ ok: false, error: `Unknown service: ${service}` })
+        }
+      } catch (err) {
+        res.json({ ok: false, error: err instanceof Error ? err.message : 'Test failed' })
       }
     })
 

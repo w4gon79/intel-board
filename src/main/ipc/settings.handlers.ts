@@ -286,7 +286,7 @@ function maskApiKeys(settings: AppSettings): AppSettings {
  * Merge incoming API keys with previously saved ones.
  * If the user didn't change a key (sent the mask), preserve the existing value.
  */
-function mergeApiKeys(
+export function mergeApiKeys(
   incoming: AppSettings['apiKeys'],
   previous: AppSettings['apiKeys']
 ): AppSettings['apiKeys'] {
