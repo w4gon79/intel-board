@@ -448,10 +448,18 @@ export default function FlightLayer({
       console.log(`[FlightLayer] Initial visibility applied: ${vis}, showAll: ${showAll}`)
     }
 
-    if (map.isStyleLoaded()) {
+    // Use try/catch + style.load fallback instead of isStyleLoaded()/on('load').
+    // With MapLibre + CARTO tiles, the 'load' event fires early and isStyleLoaded()
+    // returns false while tiles are still loading — causing sources/layers to never be added.
+    try {
       addSourcesAndLayers()
-    } else {
-      map.on('load', addSourcesAndLayers)
+    } catch {
+      map.once('style.load', addSourcesAndLayers)
+      setTimeout(() => {
+        if (!sourcesAddedRef.current) {
+          try { addSourcesAndLayers() } catch { /* ignore */ }
+        }
+      }, 100)
     }
 
     return () => {

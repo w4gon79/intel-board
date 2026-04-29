@@ -148,13 +148,13 @@ export function useGeojsonWorker(): {
 
         const bounds = getBounds(map)
 
-        // Timeout fallback: if worker doesn't respond in 2s, resolve with main-thread result
+        // Timeout fallback: if worker doesn't respond in 5s, resolve with main-thread result
         const timer = setTimeout(() => {
           console.warn(`[useGeojsonWorker] Worker timeout for ${type}, falling back to main thread`)
           pendingRef.current.delete(responseType)
           const filtered = filterFeaturesWithMilitary(features, map)
           resolve(filtered)
-        }, 2000)
+        }, 5000)
 
         pendingRef.current.set(responseType, { resolve, timer })
 

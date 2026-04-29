@@ -333,13 +333,24 @@ export default function IntelLayer({
       })
     }
 
-    if (map.isStyleLoaded()) {
+    // Use try/catch + style.load fallback instead of isStyleLoaded()/on('load').
+    // With MapLibre + CARTO tiles, the 'load' event fires early and isStyleLoaded()
+    // returns false while tiles are still loading — causing sources/layers to never be added.
+    try {
       addSourcesAndLayers()
-    } else {
-      map.on('load', addSourcesAndLayers)
+    } catch {
+      // Style not ready yet — wait for the style.load event
+      map.once('style.load', addSourcesAndLayers)
+      // Safety net: retry after a short delay in case style loaded between the try and listener
+      setTimeout(() => {
+        if (!sourcesAddedRef.current) {
+          try { addSourcesAndLayers() } catch { /* ignore */ }
+        }
+      }, 100)
     }
 
     return () => {
+      map.off('style.load', addSourcesAndLayers)
       if (map && sourcesAddedRef.current) {
         try {
           if (map.getLayer(LAYER_ID)) map.removeLayer(LAYER_ID)
