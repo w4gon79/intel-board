@@ -290,6 +290,16 @@ declare global {
       enabled: boolean
       intervalMs: number
     }
+    apiKeys: {
+      newsApiKey: string
+      openskyUsername: string
+      openskyPassword: string
+      aisstreamApiKey: string
+      gfwApiToken: string
+      fredApiKey: string
+      zaiApiKey: string
+      zaiBaseUrl: string
+    }
   }
 
   // Economic types

@@ -11,7 +11,7 @@ import express, { type Request, type Response } from 'express'
 import { join } from 'path'
 import { readFileSync, readdirSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
-import { loadSettings, type AppSettings } from '../../ipc/settings.handlers'
+import { loadSettings, loadSettingsMasked, type AppSettings } from '../../ipc/settings.handlers'
 import { getDatabase } from '../storage/database'
 import { getDatabaseStatus } from '../storage/database'
 import { getVectorStoreStatus } from '../storage/vectordb'
@@ -109,7 +109,7 @@ export class RemoteServer {
 
     // ── Settings ──
     app.get('/api/settings', (_req, res) => {
-      res.json(loadSettings())
+      res.json(loadSettingsMasked())
     })
 
     app.post('/api/settings', (req: Request, res: Response) => {

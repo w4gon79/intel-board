@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { AlertRulesPanel } from './AlertRulesPanel'
 import { SocialMediaPanel } from './SocialMediaPanel'
+import { ApiKeysPanel } from './ApiKeysPanel'
 
 interface SettingsPanelProps {
   open: boolean
@@ -247,6 +248,19 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
                 </div>
               )}
             </div>
+          </Section>
+
+          {/* ── API Keys ── */}
+          <Section title="API Keys">
+            <ApiKeysPanel
+              apiKeys={settings.apiKeys}
+              onUpdate={(patch) =>
+                setSettings({
+                  ...settings,
+                  apiKeys: { ...settings.apiKeys, ...patch }
+                })
+              }
+            />
           </Section>
 
           {/* ── Remote Access ── */}

@@ -5,7 +5,7 @@
 import { ipcMain, app } from 'electron'
 import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { config } from '../utils/config'
+import { config, reloadConfigFromSettings } from '../utils/config'
 import { remoteServer } from '../services/remote/httpServer'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -77,6 +77,17 @@ export interface AppSettings {
     enabled: boolean
     intervalMs: number
   }
+  // API Keys (configured via Settings panel, persisted to settings.json)
+  apiKeys: {
+    newsApiKey: string
+    openskyUsername: string
+    openskyPassword: string
+    aisstreamApiKey: string
+    gfwApiToken: string
+    fredApiKey: string
+    zaiApiKey: string
+    zaiBaseUrl: string
+  }
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -129,6 +140,16 @@ const DEFAULT_SETTINGS: AppSettings = {
   economic: {
     enabled: true,
     intervalMs: 1800000 // 30 minutes
+  },
+  apiKeys: {
+    newsApiKey: '',
+    openskyUsername: '',
+    openskyPassword: '',
+    aisstreamApiKey: '',
+    gfwApiToken: '',
+    fredApiKey: '',
+    zaiApiKey: '',
+    zaiBaseUrl: 'https://api.z.ai/api/coding/paas/v4'
   }
 }
 
@@ -223,14 +244,65 @@ export function loadSettings(): AppSettings {
         reddit: { ...DEFAULT_SETTINGS.socialMedia.reddit, ...parsed.socialMedia?.reddit },
         bluesky: { ...DEFAULT_SETTINGS.socialMedia.bluesky, ...parsed.socialMedia?.bluesky }
       },
-      economic: { ...DEFAULT_SETTINGS.economic, ...parsed.economic }
+      economic: { ...DEFAULT_SETTINGS.economic, ...parsed.economic },
+      apiKeys: { ...DEFAULT_SETTINGS.apiKeys, ...parsed.apiKeys }
     }
   } catch {
     return { ...DEFAULT_SETTINGS }
   }
 }
 
-function saveSettings(settings: AppSettings): void {
+/** Mask string — never expose real API keys to renderer */
+const MASK = '••••••••'
+
+/** Check if a value is the mask placeholder */
+function isMasked(value: string): boolean {
+  return value === MASK
+}
+
+/**
+ * Return a copy of settings with all API key values masked.
+ * The renderer only ever sees `••••••••` for non-empty keys,
+ * or `''` for keys that have never been set.
+ */
+function maskApiKeys(settings: AppSettings): AppSettings {
+  return {
+    ...settings,
+    apiKeys: {
+      newsApiKey: settings.apiKeys.newsApiKey ? MASK : '',
+      openskyUsername: settings.apiKeys.openskyUsername || '',
+      openskyPassword: settings.apiKeys.openskyPassword ? MASK : '',
+      aisstreamApiKey: settings.apiKeys.aisstreamApiKey ? MASK : '',
+      gfwApiToken: settings.apiKeys.gfwApiToken ? MASK : '',
+      fredApiKey: settings.apiKeys.fredApiKey ? MASK : '',
+      zaiApiKey: settings.apiKeys.zaiApiKey ? MASK : '',
+      // zaiBaseUrl is NOT secret — show it as-is
+      zaiBaseUrl: settings.apiKeys.zaiBaseUrl
+    }
+  }
+}
+
+/**
+ * Merge incoming API keys with previously saved ones.
+ * If the user didn't change a key (sent the mask), preserve the existing value.
+ */
+function mergeApiKeys(
+  incoming: AppSettings['apiKeys'],
+  previous: AppSettings['apiKeys']
+): AppSettings['apiKeys'] {
+  return {
+    newsApiKey: isMasked(incoming.newsApiKey) ? previous.newsApiKey : incoming.newsApiKey,
+    openskyUsername: isMasked(incoming.openskyUsername) ? previous.openskyUsername : incoming.openskyUsername,
+    openskyPassword: isMasked(incoming.openskyPassword) ? previous.openskyPassword : incoming.openskyPassword,
+    aisstreamApiKey: isMasked(incoming.aisstreamApiKey) ? previous.aisstreamApiKey : incoming.aisstreamApiKey,
+    gfwApiToken: isMasked(incoming.gfwApiToken) ? previous.gfwApiToken : incoming.gfwApiToken,
+    fredApiKey: isMasked(incoming.fredApiKey) ? previous.fredApiKey : incoming.fredApiKey,
+    zaiApiKey: isMasked(incoming.zaiApiKey) ? previous.zaiApiKey : incoming.zaiApiKey,
+    zaiBaseUrl: incoming.zaiBaseUrl || previous.zaiBaseUrl
+  }
+}
+
+export function saveSettings(settings: AppSettings): void {
   const path = getSettingsPath()
   writeFileSync(path, JSON.stringify(settings, null, 2), 'utf-8')
 }
@@ -280,19 +352,31 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1073741824).toFixed(1)} GB`
 }
 
+export function loadSettingsMasked(): AppSettings {
+  return maskApiKeys(loadSettings())
+}
+
 // ── IPC Registration ───────────────────────────────────────────────────────
 
 export function registerSettingsHandlers(): void {
-  // Load settings
+  // Load settings (API keys are masked before sending to renderer)
   ipcMain.handle('settings:get', () => {
-    return loadSettings()
+    const settings = loadSettings()
+    return maskApiKeys(settings)
   })
 
   // Save settings
   ipcMain.handle('settings:save', (_event, settings: AppSettings) => {
     try {
       const previous = loadSettings()
-      saveSettings(settings)
+      // Preserve unmasked API keys when the renderer sent the mask placeholder
+      const merged: AppSettings = {
+        ...settings,
+        apiKeys: mergeApiKeys(settings.apiKeys, previous.apiKeys)
+      }
+      saveSettings(merged)
+      // Reload runtime config so services pick up new keys immediately
+      reloadConfigFromSettings(merged)
 
       // Start/stop remote server if setting changed
       try {

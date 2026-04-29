@@ -41,7 +41,9 @@ import { startReviewScheduler, stopReviewScheduler } from './services/analysis/p
 import { startSocialMediaScheduler, stopSocialMediaScheduler } from './services/sources/socialMediaService'
 import { startEconomicPolling, stopEconomicPolling } from './services/economicService'
 import { remoteServer } from './services/remote/httpServer'
-import { loadSettings } from './ipc/settings.handlers'
+import { loadSettings, saveSettings } from './ipc/settings.handlers'
+import { reloadConfigFromSettings } from './utils/config'
+import { config } from './utils/config'
 
 function createWindow(): void {
   // Create the browser window.
@@ -95,6 +97,31 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  // Load persisted settings and apply them to runtime config
+  // This also handles first-launch migration of .env keys → settings.json
+  try {
+    const startupSettings = loadSettings()
+    // First-launch migration: if apiKeys section is empty but .env has values, import them
+    const ak = startupSettings.apiKeys
+    let needsMigrate = false
+    if (!ak.newsApiKey && config.newsApiKey) { ak.newsApiKey = config.newsApiKey; needsMigrate = true }
+    if (!ak.openskyUsername && config.openskyUsername) { ak.openskyUsername = config.openskyUsername; needsMigrate = true }
+    if (!ak.openskyPassword && config.openskyPassword) { ak.openskyPassword = config.openskyPassword; needsMigrate = true }
+    if (!ak.aisstreamApiKey && config.aisstreamApiKey) { ak.aisstreamApiKey = config.aisstreamApiKey; needsMigrate = true }
+    if (!ak.gfwApiToken && config.gfwApiToken) { ak.gfwApiToken = config.gfwApiToken; needsMigrate = true }
+    if (!ak.fredApiKey && config.fredApiKey) { ak.fredApiKey = config.fredApiKey; needsMigrate = true }
+    if (!ak.zaiApiKey && config.zaiApiKey) { ak.zaiApiKey = config.zaiApiKey; needsMigrate = true }
+    if (needsMigrate) {
+      saveSettings(startupSettings)
+      console.log('[main] Migrated API keys from .env to settings.json')
+    }
+    // Apply settings to runtime config
+    reloadConfigFromSettings(startupSettings)
+    console.log('[main] Settings loaded and config updated')
+  } catch (err) {
+    console.warn('[main] Could not load settings on startup:', err)
+  }
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
