@@ -5,13 +5,11 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <title>Intel Board</title>
     <!--
-      CSP tuned for Electron + Vite + Mapbox GL JS (tiles, glyphs, telemetry, blob workers).
-      Dev: 'self' covers the Vite dev server origin for module scripts and same-origin fetches.
-      See https://docs.mapbox.com/mapbox-gl-js/guides/browsers-and-testing/#csp-directives
+      CSP tuned for Electron + Vite + MapLibre GL JS (free CARTO tiles, no API key needed).
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; worker-src blob: 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.mapbox.com; font-src 'self' data: https://*.mapbox.com https://fonts.mapbox.com; connect-src 'self' https://*.mapbox.com https://api.mapbox.com https://events.mapbox.com;"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; worker-src blob: 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.basemaps.cartocdn.com https://tile.openstreetmap.org; font-src 'self' data:; connect-src 'self' https://*.basemaps.cartocdn.com https://tile.openstreetmap.org;"
     />
   </head>
 

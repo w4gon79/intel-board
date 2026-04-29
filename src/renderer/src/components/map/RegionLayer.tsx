@@ -7,6 +7,16 @@
 import { useEffect, useRef } from 'react'
 import maplibregl from 'maplibre-gl'
 import { REGION_AREAS } from '../../../../shared/regions'
+import {
+  ALL_CIV_LAYER_IDS,
+  SHIP_MILITARY_LAYER_ID
+} from './ShipLayer'
+import { CARRIER_MARKER_LAYER_ID } from './CarrierLayer'
+import { INTEL_LAYER_ID } from './IntelLayer'
+import {
+  FLIGHT_UNCLUSTERED_LAYER_ID,
+  FLIGHT_MILITARY_LAYER_ID
+} from './FlightLayer'
 
 const SOURCE_ID = 'regions'
 const FILL_LAYER_ID = 'regions-fill'
@@ -101,7 +111,23 @@ export function RegionLayer({ map, visible }: RegionLayerProps): React.JSX.Eleme
       })
 
       // Click handler — simple popup, no "Generate Brief"
+      // Check if any clickable markers are at this point first; if so, let UnifiedMapPopup handle it.
+      const CLICKABLE_MARKER_LAYERS = [
+        ...ALL_CIV_LAYER_IDS,
+        SHIP_MILITARY_LAYER_ID,
+        CARRIER_MARKER_LAYER_ID,
+        INTEL_LAYER_ID,
+        FLIGHT_UNCLUSTERED_LAYER_ID,
+        FLIGHT_MILITARY_LAYER_ID
+      ]
+
       map.on('click', FILL_LAYER_ID, (e) => {
+        // If clickable markers exist at this point, defer to UnifiedMapPopup
+        const clickableFeatures = map.queryRenderedFeatures(e.point, {
+          layers: CLICKABLE_MARKER_LAYERS
+        })
+        if (clickableFeatures.length > 0) return
+
         if (e.features && e.features.length > 0) {
           const name = (e.features[0].properties as { name: string }).name
           const region = REGION_AREAS.find((r) => r.name === name)

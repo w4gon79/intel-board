@@ -545,10 +545,11 @@ export default function ShipLayer({
             layers: [CLUSTER_LAYER_ID]
           })
           if (features.length === 0) return
-          const clusterId = features[0].properties?.cluster_id
+          // MapLibre uses 'id' for cluster IDs (not 'cluster_id' like Mapbox)
+          const clusterId = features[0].id ?? features[0].properties?.cluster_id ?? features[0].properties?.id
           if (clusterId == null) return
           const source = map.getSource(MAIN_SOURCE_ID) as GeoJSONSource
-          source.getClusterExpansionZoom(clusterId).then((zoom) => {
+          source.getClusterExpansionZoom(Number(clusterId)).then((zoom) => {
             const coords = (features[0].geometry as unknown as { coordinates: [number, number] }).coordinates
             map.easeTo({ center: coords, zoom })
           }).catch(() => { /* ignore */ })

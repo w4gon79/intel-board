@@ -214,6 +214,20 @@ export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JS
         layers: CLICKABLE_LAYER_IDS
       })
 
+      // Debug: log what layers exist and what was found at click point
+      if (allFeatures.length === 0) {
+        // Only log when debug mode is enabled (avoids console spam on empty clicks)
+        const debugAll = map.queryRenderedFeatures(e.point)
+        if (debugAll.length > 0) {
+          console.log(
+            '[UnifiedMapPopup] Click at',
+            e.point,
+            'found features on non-clickable layers:',
+            debugAll.map(f => f.layer?.id).filter(Boolean)
+          )
+        }
+      }
+
       // Remove existing popup
       if (popupRef.current) {
         popupRef.current.remove()
