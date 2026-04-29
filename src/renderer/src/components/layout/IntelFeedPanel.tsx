@@ -35,7 +35,7 @@ export function IntelFeedPanel(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<FilterTab>('ALL')
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [accuracy, setAccuracy] = useState<{
-    total: number; resolved: number; accurate: number; inaccurate: number; accuracyRate: number
+    total: number; resolved: number; accurate: number; inaccurate: number; partial: number; inconclusive: number; accuracyRate: number
   } | null>(null)
 
   // Sync tab with useIntelFeed filter
@@ -153,15 +153,22 @@ export function IntelFeedPanel(): React.JSX.Element {
 
         {/* Prediction accuracy summary */}
         {accuracy && accuracy.total > 0 && showPredictions && (
-          <div className="mt-1.5 flex items-center gap-2 text-[10px] text-zinc-600">
-            <span>{accuracy.total} predictions</span>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-zinc-600">
+            <span>{accuracy.total} total</span>
             {accuracy.resolved > 0 && (
               <>
-                <span>•</span>
                 <span className="text-emerald-500">{accuracy.accurate}✓</span>
                 <span className="text-red-400">{accuracy.inaccurate}✗</span>
+                {accuracy.partial > 0 && (
+                  <span className="text-amber-400">{accuracy.partial}~</span>
+                )}
+                {accuracy.inconclusive > 0 && (
+                  <span className="text-zinc-500">{accuracy.inconclusive}?</span>
+                )}
                 <span>•</span>
-                <span>{(accuracy.accuracyRate * 100).toFixed(0)}% acc</span>
+                <span className={accuracy.accuracyRate >= 0.5 ? 'text-emerald-400' : accuracy.accuracyRate >= 0.25 ? 'text-amber-400' : 'text-red-400'}>
+                  {(accuracy.accuracyRate * 100).toFixed(0)}% acc
+                </span>
               </>
             )}
           </div>

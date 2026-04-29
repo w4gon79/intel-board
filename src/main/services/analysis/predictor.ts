@@ -463,6 +463,19 @@ export async function generatePrediction(input: PredictionInput): Promise<Predic
     return null
   }
 
+  // Validate prediction text — reject LLM refusals that weren't caught by INSUFFICIENT_DATA
+  if (!parsed.predictionText ||
+      parsed.predictionText.length < 20 ||
+      parsed.predictionText.toLowerCase().includes('insufficient_data') ||
+      parsed.predictionText.toLowerCase().includes('cannot generate') ||
+      parsed.predictionText.toLowerCase().includes('the provided anomalies do not support') ||
+      parsed.predictionText.toLowerCase().startsWith('i cannot') ||
+      parsed.predictionText.toLowerCase().startsWith('i am unable') ||
+      parsed.predictionText.toLowerCase().startsWith('insufficient')) {
+    console.log(`[PREDICTOR] LLM refused or gave invalid prediction, skipping: "${parsed.predictionText?.substring(0, 80)}..."`)
+    return null
+  }
+
   // Calculate expected_by date
   const expectedBy = calculateExpectedBy(parsed.expectedBy)
 
@@ -653,7 +666,7 @@ export function flagOverduePredictionsForReview(): number {
       `UPDATE predictions SET outcome = 'overdue_awaiting_review'
        WHERE resolved_at IS NULL
          AND expected_by IS NOT NULL
-         AND expected_by < datetime('now')
+         AND datetime(expected_by) < strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
          AND outcome IS NULL
        RETURNING id`
     )

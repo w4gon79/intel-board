@@ -85,7 +85,14 @@ export const AREA_COORDS: Record<string, { lat: number; lon: number }> = {
   'somali basin': { lat: 5, lon: 50 },
   'off the coast of israel': { lat: 32, lon: 34 },
   'off the coast of yemen': { lat: 14, lon: 44 },
-  'off the coast of iran': { lat: 26, lon: 57 }
+  'off the coast of iran': { lat: 26, lon: 57 },
+  'sulu sea': { lat: 6, lon: 121 },
+  'celebes sea': { lat: 3, lon: 123 },
+  'mindanao sea': { lat: 9, lon: 124 },
+  'south atlantic': { lat: -25, lon: -20 },
+  'north atlantic': { lat: 40, lon: -40 },
+  'mozambique channel': { lat: -18, lon: 42 },
+  'andaman sea': { lat: 12, lon: 96 }
 }
 
 // ── Vessel type patterns ─────────────────────────────────────
@@ -446,27 +453,35 @@ function parseGroupSection(header: string, text: string): ParsedGroup | null {
 // ── Group ID generation (shared logic, hull-number-based) ────
 
 function generateGroupId(group: ParsedGroup): string {
-  // Priority 1: Use hull number from flagship vessel list
+  // Priority 0: Find the actual flagship (CVN/CV/LHD/LHA/LCC) from vessel list
+  // The AI sometimes puts escorts before the carrier, so we search ALL vessels.
   if (group.vessels && group.vessels.length > 0) {
-    const flagship = group.vessels[0] // First vessel should be the flagship
-    if (flagship.hull_number) {
+    const flagship = group.vessels.find(v =>
+      /^(CVN|CV|LHD|LHA|LCC)/i.test(v.vessel_type || v.hull_number || '')
+    )
+    if (flagship?.hull_number) {
       return 'csg-' + flagship.hull_number.toLowerCase().replace(/[^a-z0-9]/g, '')
+    }
+
+    // Fallback to first vessel if no flagship type found
+    if (group.vessels[0].hull_number) {
+      return 'csg-' + group.vessels[0].hull_number.toLowerCase().replace(/[^a-z0-9]/g, '')
     }
   }
 
-  // Priority 2: Extract hull number from flagship name string
+  // Priority 1: Extract hull number from flagship name string
   // e.g., "USS Abraham Lincoln CVN-72" → "cvn72"
   const hullMatch = group.flagship?.match(/([A-Z]{2,4}-\d+)/i)
   if (hullMatch) {
     return 'csg-' + hullMatch[1].toLowerCase().replace(/[^a-z0-9]/g, '')
   }
 
-  // Priority 3: Use designation if available
+  // Priority 2: Use designation if available
   if (group.designation) {
     return 'csg-' + group.designation.toLowerCase().replace(/[^a-z0-9]/g, '')
   }
 
-  // Priority 4: Use flagship name (stripped)
+  // Priority 3: Use flagship name (stripped)
   if (group.flagship) {
     // "USS George H.W. Bush" → "georgehwbush"
     return 'csg-' + group.flagship
@@ -517,6 +532,22 @@ function storeGroups(groups: ParsedGroup[]): number {
     for (const group of groups) {
       // Generate a stable ID using the shared helper
       const groupId = generateGroupId(group)
+
+      // Dedup check: if this group's flagship hull number already belongs to
+      // another group, skip this duplicate entry
+      const flagshipHull = group.vessels?.[0]?.hull_number
+      if (flagshipHull) {
+        const flagshipBasedId = 'csg-' + flagshipHull.toLowerCase().replace(/[^a-z0-9]/g, '')
+        if (groupId !== flagshipBasedId) {
+          // The generated ID doesn't match the flagship hull number
+          // Check if a group with the flagship-based ID already exists
+          const existing = db.prepare('SELECT id FROM carrier_groups WHERE id = ?').get(flagshipBasedId) as { id: string } | undefined
+          if (existing) {
+            console.log(`[CSG-Scraper] Skipping duplicate: ${group.name} (${groupId}) - flagship ${flagshipHull} already in group ${flagshipBasedId}`)
+            continue
+          }
+        }
+      }
 
       // Use existing group's lat/lon if USNI didn't provide one
       let lat = group.lat
@@ -665,11 +696,16 @@ Rules:
   "djibouti", "off the coast of africa", "west africa", "gulf of guinea", "5th fleet",
   "6th fleet", "7th fleet", "4th fleet", "2nd fleet", "3rd fleet", "central command",
   "centcom", "horn of africa", "somali basin", "off the coast of israel",
-  "off the coast of yemen", "off the coast of iran"
+  "off the coast of yemen", "off the coast of iran",
+  "sulu sea", "celebes sea", "mindanao sea", "south atlantic", "north atlantic",
+  "mozambique channel", "andaman sea"
 - If the article says "off the coast of Africa", use "off the coast of africa"
 - If the article says "heading to 5th Fleet" or "CENTCOM", use "5th fleet"
 - If the article says "6th Fleet AOR", use "6th fleet"
 - Match the CLOSEST area from the list above to what the article describes
+- CRITICAL: When the article mentions BOTH a specific body of water AND a fleet/command name, use the specific body of water. For example: "operating in the Arabian Sea as part of 5th Fleet" → use "arabian sea", NOT "5th fleet". "transiting the Eastern Mediterranean under 6th Fleet" → use "eastern mediterranean", NOT "6th fleet". "in the South China Sea, 7th Fleet AOR" → use "south china sea", NOT "7th fleet".
+- Only use fleet/command names (5th fleet, 6th fleet, centcom, etc.) when NO specific body of water or location is mentioned.
+- When the article says "in the CENTCOM area" or "5th Fleet AOR" with no other detail, prefer "arabian sea" over "5th fleet" (ships are typically at sea, not at HQ).
 - Be SPECIFIC: If the article mentions a specific port or location (Pearl Harbor, Panama, Yokosuka, Norfolk, etc.), use that port name as the operating_area, NOT a generic region name like "eastern pacific". Only use broad area names when no specific location is mentioned.
 - Examples: "departed Pearl Harbor" → operating_area: "pearl harbor", "in port Yokosuka" → operating_area: "yokosuka", "departed Panama" → operating_area: "panama", "operating in the Red Sea" → operating_area: "red sea"
 - Include ALL vessels mentioned in the group (carrier, cruisers, destroyers, amphibious ships)
@@ -938,10 +974,37 @@ export async function scrapeUsniFleetTracker(): Promise<number> {
     const count = storeGroups(groups)
     console.log(`[CSG-Scraper] Stored ${count} carrier groups (${groups.reduce((sum, g) => sum + g.vessels.length, 0)} vessels)`)
 
-    // Note: We intentionally do NOT delete groups missing from the current article.
-    // The AI parser may miss groups in any given parse. Groups persist in DB and
-    // get updated on next successful scrape. This ensures positions survive restarts
-    // even when the startup scrape fails.
+    // Step 7: Clean up stale groups not updated by this scrape
+    const now = new Date()
+    const STALE_GROUP_DAYS = 14 // Groups older than 14 days with no update = likely gone
+
+    const staleGroups = getDatabase().prepare(`
+      SELECT id, name, designation, flagship, last_updated 
+      FROM carrier_groups 
+      WHERE last_updated < ?
+    `).all(new Date(now.getTime() - STALE_GROUP_DAYS * 24 * 60 * 60 * 1000).toISOString()) as Array<{ id: string; name: string; designation: string; flagship: string; last_updated: string }>
+
+    if (staleGroups.length > 0) {
+      console.log(`[CSG-Scraper] Found ${staleGroups.length} stale groups (>${STALE_GROUP_DAYS} days old):`)
+      for (const g of staleGroups) {
+        console.log(`  - ${g.id}: ${g.name} (${g.flagship}) last updated ${g.last_updated}`)
+      }
+
+      // Delete stale groups and their vessels
+      const deleteGroup = getDatabase().prepare('DELETE FROM carrier_groups WHERE id = ?')
+      const deleteVessels = getDatabase().prepare('DELETE FROM carrier_group_vessels WHERE group_id = ?')
+      const deleteIntel = getDatabase().prepare('DELETE FROM csg_intel WHERE group_id = ?')
+
+      const cleanup = getDatabase().transaction(() => {
+        for (const g of staleGroups) {
+          deleteVessels.run(g.id)
+          deleteIntel.run(g.id)
+          deleteGroup.run(g.id)
+        }
+      })
+      cleanup()
+      console.log(`[CSG-Scraper] Cleaned up ${staleGroups.length} stale groups`)
+    }
 
     return count
   } catch (err) {
@@ -963,4 +1026,32 @@ export function storeSeedData(): number {
   }
   console.log('[CSG-Scraper] No seed data available — AI parsing should populate groups from USNI articles')
   return 0
+}
+
+/** One-time cleanup of known ghost groups from bad scrapes */
+export function cleanupGhostGroups(): void {
+  const db = getDatabase()
+
+  // Find groups with ARG-UNKNOWN designation and no real flagship match
+  const ghosts = db.prepare(`
+    SELECT id, name, designation, flagship 
+    FROM carrier_groups 
+    WHERE designation = 'ARG-UNKNOWN'
+  `).all() as Array<{ id: string; name: string; designation: string; flagship: string }>
+
+  if (ghosts.length === 0) return
+
+  // Check if any ghost's flagship already has a proper group entry
+  for (const ghost of ghosts) {
+    const hullMatch = ghost.flagship?.match(/([A-Z]{2,4}-\d+)/i)
+    if (hullMatch) {
+      const flagshipId = 'csg-' + hullMatch[1].toLowerCase().replace(/[^a-z0-9]/g, '')
+      const realGroup = db.prepare('SELECT id FROM carrier_groups WHERE id = ? AND id != ?').get(flagshipId, ghost.id) as { id: string } | undefined
+      if (realGroup) {
+        console.log(`[CSG-Cleanup] Removing ghost ${ghost.id} (${ghost.flagship}) - real group is ${realGroup.id}`)
+        db.prepare('DELETE FROM carrier_group_vessels WHERE group_id = ?').run(ghost.id)
+        db.prepare('DELETE FROM carrier_groups WHERE id = ?').run(ghost.id)
+      }
+    }
+  }
 }

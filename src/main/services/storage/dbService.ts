@@ -791,8 +791,8 @@ export function getPredictionsWithReviews(): Array<Prediction & { review?: Predi
   const rows = db.prepare(
     `SELECT * FROM (
       SELECT *,
-        CASE WHEN resolved_at IS NULL AND (expected_by IS NULL OR expected_by >= datetime('now')) THEN 0
-             WHEN resolved_at IS NULL AND expected_by IS NOT NULL AND expected_by < datetime('now') THEN 1
+        CASE WHEN resolved_at IS NULL AND (expected_by IS NULL OR datetime(expected_by) >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) THEN 0
+             WHEN resolved_at IS NULL AND expected_by IS NOT NULL AND datetime(expected_by) < strftime('%Y-%m-%dT%H:%M:%fZ', 'now') THEN 1
              ELSE 2
         END as sort_tier
       FROM (
@@ -805,7 +805,7 @@ export function getPredictionsWithReviews(): Array<Prediction & { review?: Predi
           LEFT JOIN prediction_reviews pr ON pr.prediction_id = p.id AND pr.id = (
             SELECT pr2.id FROM prediction_reviews pr2 WHERE pr2.prediction_id = p.id ORDER BY pr2.reviewed_at DESC LIMIT 1
           )
-          WHERE p.resolved_at IS NULL AND (p.expected_by IS NULL OR p.expected_by >= datetime('now'))
+          WHERE p.resolved_at IS NULL AND (p.expected_by IS NULL OR datetime(p.expected_by) >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
           ORDER BY p.predicted_at DESC
           LIMIT 20
         )
@@ -821,7 +821,7 @@ export function getPredictionsWithReviews(): Array<Prediction & { review?: Predi
           LEFT JOIN prediction_reviews pr ON pr.prediction_id = p.id AND pr.id = (
             SELECT pr2.id FROM prediction_reviews pr2 WHERE pr2.prediction_id = p.id ORDER BY pr2.reviewed_at DESC LIMIT 1
           )
-          WHERE p.resolved_at IS NULL AND p.expected_by IS NOT NULL AND p.expected_by < datetime('now')
+          WHERE p.resolved_at IS NULL AND p.expected_by IS NOT NULL AND datetime(p.expected_by) < strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
           ORDER BY p.expected_by DESC
           LIMIT 15
         )

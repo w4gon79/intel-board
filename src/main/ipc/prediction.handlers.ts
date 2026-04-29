@@ -97,16 +97,30 @@ export function registerPredictionHandlers(): void {
         }
       ).count
 
+      // Verdict breakdown from prediction_reviews
+      const verdictRows = db.prepare(
+        `SELECT outcome, COUNT(*) as count FROM prediction_reviews GROUP BY outcome`
+      ).all() as { outcome: string; count: number }[]
+
+      let partial = 0
+      let inconclusive = 0
+      for (const row of verdictRows) {
+        if (row.outcome === 'partially_accurate') partial = row.count
+        if (row.outcome === 'inconclusive') inconclusive = row.count
+      }
+
       return {
         total,
         resolved,
         accurate,
         inaccurate,
+        partial,
+        inconclusive,
         accuracyRate: (accurate + inaccurate) > 0 ? accurate / (accurate + inaccurate) : 0
       }
     } catch (error) {
       console.error('[PREDICTIONS] getAccuracy error:', error)
-      return { total: 0, resolved: 0, accurate: 0, inaccurate: 0, accuracyRate: 0 }
+      return { total: 0, resolved: 0, accurate: 0, inaccurate: 0, partial: 0, inconclusive: 0, accuracyRate: 0 }
     }
   })
 

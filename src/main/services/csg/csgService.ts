@@ -5,9 +5,8 @@
  */
 
 import { getDatabase } from '../storage/database'
-import { scrapeUsniFleetTracker, storeSeedData } from './usniScraper'
+import { scrapeUsniFleetTracker, storeSeedData, cleanupGhostGroups } from './usniScraper'
 import { scrapeTwzCarrierTracker } from './twzScraper'
-import { runAisMatcher } from './aisMatcher'
 import { evaluateRules } from '../alerts/ruleEngine'
 import type {
   CarrierGroup,
@@ -126,13 +125,12 @@ export function getCarrierGroupGeoJSON(): Record<string, unknown> {
   }
 }
 
-/** Trigger a full refresh: USNI scrape + AIS match */
+/** Trigger a full refresh: USNI scrape (AIS matching disabled for CSG/ARG vessels) */
 export async function refreshCarrierData(): Promise<{
   groupsCount: number
-  aisMatches: number
 }> {
   const groupsCount = await scrapeUsniFleetTracker()
-  const aisMatches = runAisMatcher()
+  // AIS matching removed — USNI/TWZ data is authoritative for CSG positions
 
   // Evaluate custom alert rules against CSG groups (Phase 5A)
   try {
@@ -149,10 +147,10 @@ export async function refreshCarrierData(): Promise<{
     console.error('[CSG] Rule evaluation error:', err instanceof Error ? err.message : String(err))
   }
 
-  return { groupsCount, aisMatches }
+  return { groupsCount }
 }
 
-/** Initialize CSG data (seed if empty, then run AIS match) */
+/** Initialize CSG data (seed if empty, clean up ghosts) */
 export async function initCsgData(): Promise<void> {
   const db = getDatabase()
   const count = db.prepare('SELECT COUNT(*) as c FROM carrier_groups').get() as { c: number }
@@ -164,34 +162,25 @@ export async function initCsgData(): Promise<void> {
     console.log(`[CSG] ${count.c} carrier groups already loaded`)
   }
 
-  // Run initial AIS match
+  // Clean up any ghost groups from bad scrapes
   try {
-    const matches = runAisMatcher()
-    console.log(`[CSG] Initial AIS match: ${matches} vessels found`)
+    cleanupGhostGroups()
   } catch (err) {
-    console.warn('[CSG] Initial AIS match failed:', err instanceof Error ? err.message : String(err))
+    console.warn('[CSG] Ghost cleanup failed:', err instanceof Error ? err.message : String(err))
   }
+
+  // AIS matching disabled for CSG/ARG vessels — USNI/TWZ data is authoritative
 }
 
 // ── Scheduler ────────────────────────────────────────────────
 
 let weeklyScrapeTimer: ReturnType<typeof setInterval> | null = null
-let aisMatchTimer: ReturnType<typeof setInterval> | null = null
 
 /** Start the CSG scheduler */
 export function startCsgScheduler(): void {
   console.log('[CSG] Starting scheduler')
 
-  // AIS match: every 5 minutes
-  if (!aisMatchTimer) {
-    aisMatchTimer = setInterval(() => {
-      try {
-        runAisMatcher()
-      } catch (err) {
-        console.error('[CSG] AIS match error:', err instanceof Error ? err.message : String(err))
-      }
-    }, 5 * 60 * 1000)
-  }
+  // AIS match timer removed — AIS matching disabled for CSG/ARG vessels
 
   // USNI scrape: once per week (7 days)
   if (!weeklyScrapeTimer) {
@@ -222,10 +211,6 @@ export function startCsgScheduler(): void {
 
 /** Stop the CSG scheduler */
 export function stopCsgScheduler(): void {
-  if (aisMatchTimer) {
-    clearInterval(aisMatchTimer)
-    aisMatchTimer = null
-  }
   if (weeklyScrapeTimer) {
     clearInterval(weeklyScrapeTimer)
     weeklyScrapeTimer = null

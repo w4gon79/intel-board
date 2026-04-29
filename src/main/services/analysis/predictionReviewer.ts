@@ -285,7 +285,7 @@ Based ONLY on the evidence above, determine whether the prediction was accurate.
 
 Rules:
 1. Be strict. A prediction is "accurate" only if the core claim came true. Partial fulfillment equals partially_accurate.
-2. If no relevant evidence was found, mark as "inconclusive" — do not guess.
+2. If no DIRECTLY relevant evidence was found, mark as "inaccurate" rather than "inconclusive". A prediction that cannot be verified is effectively wrong. Inconclusive should only be used when evidence exists but is ambiguous (e.g., conflicting reports).
 3. "Accurate" means the specific outcome predicted actually happened, not just that something related happened.
 4. Consider the timeframe — evidence outside the predicted timeframe is less relevant.
 
@@ -311,15 +311,43 @@ FORMATTING: Write in natural prose. Do NOT use markdown formatting: no **bold**,
   const evidenceScoreMatch = response.match(/---EVIDENCE_SCORE---\s*\n?\s*(sufficient|insufficient)/i)
   const keyFindingMatch = response.match(/---KEY_FINDING---\s*\n?\s*([\s\S]*?)$/i)
 
-  const verdict = (
-    verdictMatch?.[1]?.toLowerCase() ?? 'inconclusive'
-  ) as 'accurate' | 'inaccurate' | 'partially_accurate' | 'inconclusive'
+  // Primary: extract from structured format
+  let verdict: 'accurate' | 'inaccurate' | 'partially_accurate' | 'inconclusive'
+  if (verdictMatch?.[1]) {
+    verdict = verdictMatch[1].toLowerCase() as typeof verdict
+  } else {
+    // Fallback: look for verdict keyword anywhere in response
+    const lowerResponse = response.toLowerCase()
+    if (lowerResponse.includes('partially_accurate') || lowerResponse.includes('partially accurate')) {
+      verdict = 'partially_accurate'
+    } else if (lowerResponse.includes('accurate') && !lowerResponse.includes('inaccurate')) {
+      verdict = 'accurate'
+    } else if (lowerResponse.includes('inaccurate')) {
+      verdict = 'inaccurate'
+    } else {
+      verdict = 'inconclusive'
+    }
+  }
+
+  // Fallback reasoning: try to extract any text after REASONING marker, or use response excerpt
+  let reasoning = reasoningMatch?.[1]?.trim()
+  if (!reasoning || reasoning === '') {
+    const reasonFallback = response.match(/reasoning[:\s]*\n?\s*([\s\S]{20,300}?)(?=---|evidence|finding|$)/i)
+    reasoning = reasonFallback?.[1]?.trim() ?? response.substring(0, 300).trim()
+  }
+
+  // Fallback key finding
+  let keyFinding = keyFindingMatch?.[1]?.trim()
+  if (!keyFinding || keyFinding === '') {
+    const findingFallback = response.match(/(?:key.?finding|what happened)[:\s]*\n?\s*([\s\S]{10,300}?)(?=---|$)/i)
+    keyFinding = findingFallback?.[1]?.trim() ?? 'No key finding determined.'
+  }
 
   return {
     verdict,
-    reasoning: reasoningMatch?.[1]?.trim() ?? 'No reasoning provided.',
+    reasoning: reasoning || 'No reasoning provided.',
     evidenceScore: evidenceScoreMatch?.[1]?.toLowerCase() ?? 'insufficient',
-    keyFinding: keyFindingMatch?.[1]?.trim() ?? 'No key finding determined.'
+    keyFinding
   }
 }
 
@@ -438,9 +466,9 @@ export async function reviewOverduePredictions(): Promise<number> {
        LEFT JOIN intel_items i ON p.prediction_text = i.title
        WHERE p.resolved_at IS NULL
          AND p.expected_by IS NOT NULL
-         AND p.expected_by < datetime('now')
-         AND (p.outcome IS NULL OR p.outcome = 'overdue_awaiting_review')
-         AND p.id NOT IN (SELECT prediction_id FROM prediction_reviews WHERE outcome != 'inconclusive')
+          AND datetime(p.expected_by) < strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+          AND (p.outcome IS NULL OR p.outcome = 'overdue_awaiting_review')
+          AND p.id NOT IN (SELECT prediction_id FROM prediction_reviews)
        ORDER BY p.expected_by ASC
        LIMIT 25`
     )
@@ -635,12 +663,29 @@ export function startReviewScheduler(intervalMs: number = 2 * 60 * 60 * 1000): v
 
   console.log(`[predictionReviewer] Starting scheduler (interval: ${intervalMs / 1000}s)`)
 
-  // Run first review after a short delay (1 minute) to let other services initialize
-  setTimeout(() => {
-    reviewOverduePredictions().catch((err) => {
-      console.error('[predictionReviewer] Initial review failed:', err)
-    })
-  }, 60_000)
+  // One-time database cleanup: remove LLM refusals stored as predictions
+  try {
+    const db = getDatabase()
+    const r1 = db.prepare("DELETE FROM predictions WHERE prediction_text LIKE 'INSufficient_Data%'").run()
+    const r2 = db.prepare("DELETE FROM predictions WHERE LOWER(prediction_text) LIKE 'i cannot%' OR LOWER(prediction_text) LIKE 'i am unable%'").run()
+    if (r1.changes + r2.changes > 0) {
+      console.log(`[reviewer] Cleaned up ${r1.changes + r2.changes} LLM refusal(s) from predictions`)
+    }
+    // Delete duplicate reviews (keep only the latest per prediction)
+    const r3 = db.prepare(
+      `DELETE FROM prediction_reviews WHERE id NOT IN (SELECT id FROM prediction_reviews GROUP BY prediction_id HAVING MAX(reviewed_at))`
+    ).run()
+    if (r3.changes > 0) {
+      console.log(`[reviewer] Cleaned up ${r3.changes} duplicate review(s)`)
+    }
+  } catch (err) {
+    console.error('[reviewer] Startup cleanup failed:', err)
+  }
+
+  // Run immediate review on startup
+  reviewOverduePredictions().catch(err => {
+    console.error('[reviewer] Startup review failed:', err)
+  })
 
   reviewInterval = setInterval(() => {
     reviewOverduePredictions().catch((err) => {
