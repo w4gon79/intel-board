@@ -239,19 +239,62 @@ function findLinks(html: string, pattern: RegExp): string[] {
   return links
 }
 
+/** Extract content between balanced opening/closing tags by counting nesting depth */
+function extractBalanced(html: string, openPattern: RegExp, tagName: string): string | null {
+  const startMatch = html.match(openPattern)
+  if (!startMatch) return null
+
+  const contentStart = startMatch.index! + startMatch[0].length
+  const openRegex = new RegExp(`<${tagName}[\\s>]`, 'gi')
+  const closeRegex = new RegExp(`<\\/${tagName}>`, 'gi')
+  let depth = 1
+  let pos = contentStart
+
+  while (depth > 0 && pos < html.length) {
+    openRegex.lastIndex = pos
+    closeRegex.lastIndex = pos
+    const nextOpen = openRegex.exec(html)
+    const nextClose = closeRegex.exec(html)
+
+    if (!nextClose) break
+    if (nextOpen && nextOpen.index < nextClose.index) {
+      depth++
+      pos = nextOpen.index + nextOpen[0].length
+    } else {
+      depth--
+      if (depth === 0) return html.substring(contentStart, nextClose.index)
+      pos = nextClose.index + nextClose[0].length
+    }
+  }
+  return html.substring(contentStart)
+}
+
 /** Extract the main article body content */
 export function extractArticleBody(html: string): string {
-  // Try to find the article content area
-  const articleMatch = html.match(/<article[^>]*>([\s\S]*?)<\/article>/i)
-  if (articleMatch) return articleMatch[1]
+  // Try entry-content div first (WordPress standard - USNI uses WordPress)
+  // This is more reliable than <article> for WordPress sites
+  const entryContent = extractBalanced(html, /class="[^"]*(?:entry-content|post-content|article-body)[^"]*"[^>]*>/i, 'div')
+  if (entryContent && entryContent.length > 200) {
+    console.log(`[CSG-Scraper] Extracted article body from entry-content div (${entryContent.length} chars)`)
+    return entryContent
+  }
 
-  // Fallback: find entry-content or post-content div
-  const contentMatch = html.match(/class="[^"]*(?:entry-content|post-content|article-content)[^"]*"[\s]*>([\s\S]*?)(?=<\/div>)/i)
-  if (contentMatch) return contentMatch[1]
+  // Try article tag with nesting-aware extraction
+  const articleContent = extractBalanced(html, /<article[^>]*>/i, 'article')
+  if (articleContent && articleContent.length > 200) {
+    console.log(`[CSG-Scraper] Extracted article body from <article> tag (${articleContent.length} chars)`)
+    return articleContent
+  }
 
   // Last resort: body content
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i)
-  return bodyMatch ? bodyMatch[1] : html
+  if (bodyMatch) {
+    console.log(`[CSG-Scraper] Falling back to <body> content (${bodyMatch[1].length} chars)`)
+    return bodyMatch[1]
+  }
+
+  console.log(`[CSG-Scraper] WARNING: No article body found, using raw HTML (${html.length} chars)`)
+  return html
 }
 
 // ── Parse operating area from text ──────────────────────────
@@ -429,18 +472,63 @@ function parseGroupSection(header: string, text: string): ParsedGroup | null {
     }
   }
 
-  // Determine status
+  // Fix 5: If flagship is a CVN (aircraft carrier), group type MUST be CSG, never ARG
+  let resolvedGroupType = groupType
+  if (flagship && /CVN|CV-\d/i.test(flagship)) {
+    if (resolvedGroupType !== 'CSG') {
+      console.log(`[CSG-Scraper] CVN flagship detected (${flagship}), overriding ${resolvedGroupType} → CSG`)
+    }
+    resolvedGroupType = 'CSG'
+  }
+
+  // Fix 4: Try to infer designation from flagship hull number if not found in header
+  let resolvedDesignation = designation
+  if (!resolvedDesignation || resolvedDesignation.includes('UNKNOWN')) {
+    const flagshipHull = vessels.find(v =>
+      /^(CVN|CV|LHD|LHA|LCC)/i.test(v.vessel_type || v.hull_number || '')
+    )?.hull_number
+    if (flagshipHull) {
+      try {
+        const db = getDatabase()
+        const existing = db.prepare(
+          'SELECT designation FROM carrier_groups WHERE flagship LIKE ?'
+        ).get(`%${flagshipHull}%`) as { designation: string } | undefined
+        if (existing?.designation && !existing.designation.includes('UNKNOWN')) {
+          resolvedDesignation = existing.designation
+          console.log(`[CSG-Scraper] Inferred designation ${resolvedDesignation} from existing DB entry for ${flagshipHull}`)
+        }
+      } catch {
+        // DB lookup is best-effort, don't fail on error
+      }
+    }
+    if (!resolvedDesignation) {
+      resolvedDesignation = `${resolvedGroupType}-UNKNOWN`
+    }
+  }
+
+  // Determine status (Fix 2: deployed > in-port priority)
+  // "deployed" and "underway" take priority because USNI uses "Deployed" as a section header
   let status = 'deployed'
   const lowerText = text.toLowerCase()
-  if (lowerText.includes('in-port') || lowerText.includes('in port') || lowerText.includes('homeport')) {
+  if (lowerText.includes('deployed') || lowerText.includes('underway') || lowerText.includes('operating in')) {
+    status = 'deployed'
+  } else if (lowerText.includes('in-port') || lowerText.includes('in port') || lowerText.includes('homeport')) {
     status = 'in-port'
   } else if (lowerText.includes('transiting') || lowerText.includes('transit')) {
     status = 'transiting'
   }
 
+  // Build name from resolved designation and group type
+  const desigNum = resolvedDesignation.match(/(\d+)$/)?.[1] ?? desigMatch?.[1] ?? ''
+  const groupLabel = resolvedGroupType === 'CSG' ? 'Carrier Strike Group'
+    : resolvedGroupType === 'ARG' ? 'Amphibious Ready Group'
+    : 'Expeditionary Strike Group'
+
   return {
-    name: designation ? `${groupType === 'CSG' ? 'Carrier Strike Group' : groupType === 'ARG' ? 'Amphibious Ready Group' : 'Expeditionary Strike Group'} ${desigMatch?.[1] ?? ''}`.trim() : header,
-    designation: designation ?? `${groupType}-UNKNOWN`,
+    name: resolvedDesignation && !resolvedDesignation.includes('UNKNOWN')
+      ? `${groupLabel} ${desigNum}`.trim()
+      : header,
+    designation: resolvedDesignation,
     flagship,
     status,
     operatingArea: areaInfo?.area ?? null,
@@ -549,27 +637,62 @@ function storeGroups(groups: ParsedGroup[]): number {
         }
       }
 
-      // Use existing group's lat/lon if USNI didn't provide one
+      // Fix 1: Confidence-based merge — if parsed designation is UNKNOWN,
+      // preserve existing data for fields the parser likely got wrong
+      const isLowConfidence = !group.designation || group.designation.includes('UNKNOWN')
+      let upsertName = group.name
+      let upsertDesignation = group.designation
+      let upsertStatus = group.status
+      let upsertOperatingArea = group.operatingArea
       let lat = group.lat
       let lon = group.lon
-      if (lat == null || lon == null) {
-        const existing = db.prepare('SELECT latitude, longitude, operating_area FROM carrier_groups WHERE id = ?').get(groupId) as { latitude: number | null; longitude: number | null; operating_area: string | null } | undefined
-        if (existing && existing.operating_area === group.operatingArea) {
-          // Same operating area - keep existing coords
-          lat = lat ?? existing.latitude
-          lon = lon ?? existing.longitude
+
+      if (isLowConfidence) {
+        // Fetch existing group data to preserve known values
+        const existing = db.prepare(
+          'SELECT name, designation, status, operating_area, latitude, longitude FROM carrier_groups WHERE id = ?'
+        ).get(groupId) as { name: string; designation: string; status: string; operating_area: string | null; latitude: number | null; longitude: number | null } | undefined
+
+        if (existing) {
+          console.log(`[CSG-Scraper] Low confidence parse for ${groupId} (designation: ${group.designation}), preserving existing data`)
+
+          // Preserve existing values for uncertain fields
+          if (existing.name && !existing.name.includes('UNKNOWN')) {
+            upsertName = existing.name
+          }
+          if (existing.designation && !existing.designation.includes('UNKNOWN')) {
+            upsertDesignation = existing.designation
+          }
+          // Only update status if the parser found clear evidence
+          // Keep existing status since garbled text can't be trusted
+          if (existing.status) {
+            upsertStatus = existing.status
+          }
+          if (existing.operating_area) {
+            upsertOperatingArea = existing.operating_area
+          }
+          // Preserve existing coordinates
+          lat = existing.latitude
+          lon = existing.longitude
         }
-        // If operating area changed but we still have no coords, lat/lon stays null
-        // The map will hide the marker rather than show it at the wrong location
+      } else {
+        // High confidence parse — use existing coords as fallback if needed
+        if (lat == null || lon == null) {
+          const existing = db.prepare('SELECT latitude, longitude, operating_area FROM carrier_groups WHERE id = ?').get(groupId) as { latitude: number | null; longitude: number | null; operating_area: string | null } | undefined
+          if (existing && existing.operating_area === group.operatingArea) {
+            lat = lat ?? existing.latitude
+            lon = lon ?? existing.longitude
+          }
+        }
       }
 
       upsertGroup.run({
         id: groupId,
-        name: group.name,
-        designation: group.designation,
+        name: upsertName,
+        designation: upsertDesignation,
         flagship: group.flagship,
-        status: group.status,
-        operating_area: group.operatingArea,
+        status: upsertStatus,
+        operating_area: upsertOperatingArea,
         latitude: lat,
         longitude: lon,
         source: 'usni',
@@ -936,7 +1059,9 @@ export async function scrapeUsniFleetTracker(): Promise<number> {
     const articleHtml = await fetchUrl(articleUrl)
 
     // Step 4: Extract plain text from article HTML for AI parsing
-    const articleText = stripHtml(extractArticleBody(articleHtml))
+    const articleBody = extractArticleBody(articleHtml)
+    const articleText = stripHtml(articleBody)
+    console.log(`[CSG-Scraper] Article text preview (first 2000 chars):\n${articleText.substring(0, 2000)}`)
 
     // Step 5: Try AI parsing first, fall back to regex
     let groups: ParsedGroup[] = []
