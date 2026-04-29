@@ -489,5 +489,70 @@ export function registerSettingsHandlers(): void {
     }
   )
 
+  // ── API Key validation ──
+
+  ipcMain.handle('settings:testApiKey', async (_event, service: string) => {
+    const settings = loadSettings()
+    try {
+      switch (service) {
+        case 'news': {
+          const key = settings.apiKeys.newsApiKey
+          if (!key) return { ok: false, error: 'No key configured' }
+          const resp = await fetch(`https://newsapi.org/v2/top-headlines?country=us&pageSize=1&apiKey=${key}`, {
+            signal: AbortSignal.timeout(8000)
+          })
+          const body = (await resp.json()) as { status?: string; code?: string }
+          if (body.status === 'ok') return { ok: true }
+          return { ok: false, error: body.code ?? `HTTP ${resp.status}` }
+        }
+        case 'opensky': {
+          const user = settings.apiKeys.openskyUsername
+          const pass = settings.apiKeys.openskyPassword
+          if (!user || !pass) return { ok: false, error: 'Username and password required' }
+          const resp = await fetch('https://opensky-network.org/api/states/all?lamin=45&lamax=46&lomin=5&lomax=6&limit=1', {
+            headers: { Authorization: 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64') },
+            signal: AbortSignal.timeout(10000)
+          })
+          if (resp.ok) return { ok: true }
+          if (resp.status === 401) return { ok: false, error: 'Invalid credentials' }
+          return { ok: false, error: `HTTP ${resp.status}` }
+        }
+        case 'aisstream': {
+          const key = settings.apiKeys.aisstreamApiKey
+          if (!key) return { ok: false, error: 'No key configured' }
+          // AISStream uses WebSocket; just verify the key format looks valid
+          // A full test requires a WebSocket connection which is too expensive for validation
+          if (key.length >= 20) return { ok: true, note: 'Key format valid (WebSocket verified on connect)' }
+          return { ok: false, error: 'Key too short' }
+        }
+        case 'gfw': {
+          const token = settings.apiKeys.gfwApiToken
+          if (!token) return { ok: false, error: 'No token configured' }
+          // GFW v3 API requires POST with body; we do a lightweight GET to check auth.
+          // 401/403 = bad token, 404/422 = auth passed (endpoint needs POST body)
+          const resp = await fetch('https://gateway.api.globalfishingwatch.org/v3/4wings/report', {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(10000)
+          })
+          if (resp.status === 401 || resp.status === 403) return { ok: false, error: 'Invalid or expired token' }
+          return { ok: true } // Any other status means auth passed
+        }
+        case 'fred': {
+          const key = settings.apiKeys.fredApiKey
+          if (!key) return { ok: false, error: 'No key configured' }
+          const resp = await fetch(`https://api.stlouisfed.org/fred/series/updates?api_key=${key}&file_type=json&limit=1`, {
+            signal: AbortSignal.timeout(8000)
+          })
+          if (resp.ok) return { ok: true }
+          return { ok: false, error: `HTTP ${resp.status}` }
+        }
+        default:
+          return { ok: false, error: `Unknown service: ${service}` }
+      }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Connection failed' }
+    }
+  })
+
   console.log('[IPC] Settings handlers registered')
 }

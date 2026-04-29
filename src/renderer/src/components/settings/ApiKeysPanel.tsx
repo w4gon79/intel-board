@@ -10,6 +10,8 @@ interface ApiKeysPanelProps {
   onUpdate: (patch: Partial<AppSettings['apiKeys']>) => void
 }
 
+type TestState = Record<string, 'idle' | 'testing' | 'ok' | 'fail'>
+
 // ── Field Definitions ──────────────────────────────────────────────────────
 
 interface KeyField {
@@ -82,23 +84,7 @@ const KEY_FIELDS: KeyField[] = [
     signupLabel: 'fred.stlouisfed.org',
     group: 'Economic Data (Optional)'
   },
-  // Group: Cloud AI
-  {
-    key: 'zaiApiKey',
-    label: 'Z.ai API Key',
-    type: 'password',
-    helper: 'Optional cloud AI provider',
-    signupUrl: 'https://z.ai',
-    signupLabel: 'z.ai',
-    group: 'Cloud AI (Optional)'
-  },
-  {
-    key: 'zaiBaseUrl',
-    label: 'Z.ai Base URL',
-    type: 'url',
-    helper: 'Default: https://api.z.ai/api/coding/paas/v4',
-    group: 'Cloud AI (Optional)'
-  }
+
 ]
 
 const GROUP_ORDER = [
@@ -106,22 +92,63 @@ const GROUP_ORDER = [
   'Flight Tracking (ADS-B)',
   'Ship Tracking (AIS)',
   'Vessel Presence',
-  'Economic Data (Optional)',
-  'Cloud AI (Optional)'
+  'Economic Data (Optional)'
 ]
 
 // ── Component ───────────────────────────────────────────────────────────────
 
+const GROUP_TEST_SERVICE: Record<string, string> = {
+  'News & Data': 'news',
+  'Flight Tracking (ADS-B)': 'opensky',
+  'Ship Tracking (AIS)': 'aisstream',
+  'Vessel Presence': 'gfw',
+  'Economic Data (Optional)': 'fred'
+}
+
 export function ApiKeysPanel({ apiKeys, onUpdate }: ApiKeysPanelProps): React.JSX.Element {
+  const [testState, setTestState] = useState<TestState>({})
+
+  async function handleTest(group: string): Promise<void> {
+    const service = GROUP_TEST_SERVICE[group]
+    if (!service) return
+    setTestState((prev) => ({ ...prev, [group]: 'testing' }))
+    try {
+      const result = await window.api.settings.testApiKey(service) as { ok: boolean; error?: string }
+      setTestState((prev) => ({ ...prev, [group]: result.ok ? 'ok' : 'fail' }))
+    } catch {
+      setTestState((prev) => ({ ...prev, [group]: 'fail' }))
+    }
+    // Reset after 3 seconds
+    setTimeout(() => setTestState((prev) => ({ ...prev, [group]: 'idle' })), 3000)
+  }
+
   return (
     <div className="space-y-5">
       {GROUP_ORDER.map((group) => {
         const fields = KEY_FIELDS.filter((f) => f.group === group)
+        const ts = testState[group] ?? 'idle'
+        const canTest = !!GROUP_TEST_SERVICE[group]
         return (
           <div key={group}>
-            <h4 className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
-              {group}
-            </h4>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600">
+                {group}
+              </h4>
+              {canTest && (
+                <button
+                  type="button"
+                  onClick={() => handleTest(group)}
+                  disabled={ts === 'testing'}
+                  className={`text-[9px] px-2 py-0.5 rounded transition-colors ${
+                    ts === 'ok' ? 'bg-emerald-500/20 text-emerald-400' :
+                    ts === 'fail' ? 'bg-red-500/20 text-red-400' :
+                    'bg-zinc-800 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700'
+                  }`}
+                >
+                  {ts === 'testing' ? 'Testing…' : ts === 'ok' ? '✓ Valid' : ts === 'fail' ? '✗ Failed' : 'Test'}
+                </button>
+              )}
+            </div>
             <div className="space-y-2">
               {fields.map((field) => (
                 <KeyFieldInput
