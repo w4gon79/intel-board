@@ -38,8 +38,8 @@ const LAYER_CONFIG: Array<{
   color: string
 }> = [
   { key: 'adsb', label: 'ADS-B Flights', icon: '✈', color: 'text-green-400' },
-  { key: 'csg', label: 'CSG / ARG', icon: '⚓', color: 'text-amber-400' },
   { key: 'ais', label: 'AIS Vessels', icon: '🚢', color: 'text-cyan-400' },
+  { key: 'csg', label: 'CSG / ARG', icon: '⚓', color: 'text-amber-400' },
   { key: 'gfw', label: 'GFW Presence', icon: '🛰', color: 'text-purple-400' },
   { key: 'intel', label: 'Intel Items', icon: '📍', color: 'text-amber-400' },
   { key: 'corridors', label: 'Transit Corridors', icon: '📏', color: 'text-orange-400' },
