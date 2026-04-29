@@ -715,7 +715,7 @@ function preparePredictionStatements(db: Database.Database): void {
   )
   stmtPredictionResolve = db.prepare(`
     UPDATE predictions
-    SET outcome = @outcome, resolved_at = @resolved_at, was_accurate = @was_accurate
+    SET outcome = @outcome, resolved_at = @resolved_at, was_accurate = @was_accurate, status = 'resolved'
     WHERE id = @id
   `)
   stmtPredictionCount = db.prepare('SELECT COUNT(*) as count FROM predictions')
