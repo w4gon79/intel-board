@@ -30,6 +30,89 @@ const REGION_RULES: RegionRule[] = [
   { region: 'Arctic', keywords: ['arctic', 'greenland', 'iceland', 'svalbard'] }
 ]
 
+// ── Country-level geocoding ──
+
+interface CountryRule {
+  country: string
+  keywords: string[]
+  lat: number
+  lon: number
+}
+
+const COUNTRY_COORDS: CountryRule[] = [
+  // Middle East
+  { country: 'Israel', keywords: ['israel', 'idf', 'tel aviv', 'jerusalem', 'gaza', 'west bank'], lat: 31.5, lon: 35.0 },
+  { country: 'Iran', keywords: ['iran', 'tehran', 'irgc', 'persian', 'khamenei'], lat: 32.0, lon: 53.0 },
+  { country: 'Iraq', keywords: ['iraq', 'baghdad', 'kurdistan', 'mosul', 'erbil'], lat: 33.0, lon: 44.0 },
+  { country: 'Syria', keywords: ['syria', 'damascus', 'assad', 'aleppo'], lat: 35.0, lon: 38.0 },
+  { country: 'Yemen', keywords: ['yemen', 'aden', 'sanaa', 'houthi'], lat: 15.5, lon: 44.0 },
+  { country: 'Saudi Arabia', keywords: ['saudi', 'riyadh', 'mbs', 'mohammed bin salman'], lat: 24.0, lon: 45.0 },
+  { country: 'Turkey', keywords: ['turkey', 'erdogan', 'ankara', 'istanbul'], lat: 39.0, lon: 35.0 },
+  { country: 'Lebanon', keywords: ['lebanon', 'beirut', 'hezbollah'], lat: 33.9, lon: 35.5 },
+  { country: 'UAE', keywords: ['uae', 'dubai', 'abu dhabi', 'emirati'], lat: 24.0, lon: 54.0 },
+  { country: 'Qatar', keywords: ['qatar', 'doha'], lat: 25.3, lon: 51.2 },
+  { country: 'Jordan', keywords: ['jordan', 'amman'], lat: 31.0, lon: 36.6 },
+  { country: 'Egypt', keywords: ['egypt', 'cairo', 'suez', 'sinai'], lat: 27.0, lon: 30.0 },
+  // East Asia
+  { country: 'China', keywords: ['china', 'beijing', 'shanghai', 'xi jinping', 'ccp', 'pla', 'chinese', 'shenzhen'], lat: 35.0, lon: 105.0 },
+  { country: 'Taiwan', keywords: ['taiwan', 'taipei'], lat: 23.5, lon: 121.0 },
+  { country: 'Japan', keywords: ['japan', 'tokyo', 'jsdf', 'abe'], lat: 36.0, lon: 138.0 },
+  { country: 'North Korea', keywords: ['north korea', 'pyongyang', 'kim jong', 'dprk'], lat: 40.0, lon: 127.5 },
+  { country: 'South Korea', keywords: ['south korea', 'seoul', 'rok'], lat: 36.0, lon: 127.5 },
+  // Europe
+  { country: 'Ukraine', keywords: ['ukraine', 'kyiv', 'kiev', 'zelensky', 'donbas', 'crimea', 'donetsk'], lat: 49.0, lon: 31.0 },
+  { country: 'Russia', keywords: ['russia', 'kremlin', 'putin', 'moscow', 'russian'], lat: 60.0, lon: 60.0 },
+  { country: 'Germany', keywords: ['germany', 'berlin', 'scholz', 'bundeswehr'], lat: 51.0, lon: 10.0 },
+  { country: 'France', keywords: ['france', 'paris', 'macron'], lat: 47.0, lon: 2.0 },
+  { country: 'UK', keywords: ['uk ', 'britain', 'london', 'british'], lat: 52.0, lon: -1.0 },
+  { country: 'Poland', keywords: ['poland', 'warsaw'], lat: 52.0, lon: 19.0 },
+  { country: 'Belarus', keywords: ['belarus', 'lukashenko', 'minsk'], lat: 53.7, lon: 27.9 },
+  // South Asia
+  { country: 'India', keywords: ['india', 'modi', 'new delhi', 'mumbai', 'indian'], lat: 22.0, lon: 78.0 },
+  { country: 'Pakistan', keywords: ['pakistan', 'islamabad', 'karachi'], lat: 30.0, lon: 69.0 },
+  { country: 'Afghanistan', keywords: ['afghanistan', 'kabul', 'taliban'], lat: 33.0, lon: 66.0 },
+  // Southeast Asia
+  { country: 'Myanmar', keywords: ['myanmar', 'burma', 'yangon'], lat: 20.0, lon: 96.0 },
+  { country: 'Philippines', keywords: ['philippines', 'manila'], lat: 13.0, lon: 122.0 },
+  { country: 'Indonesia', keywords: ['indonesia', 'jakarta'], lat: -2.0, lon: 118.0 },
+  { country: 'Vietnam', keywords: ['vietnam', 'hanoi'], lat: 16.0, lon: 108.0 },
+  { country: 'Thailand', keywords: ['thailand', 'bangkok'], lat: 15.0, lon: 101.0 },
+  // Africa
+  { country: 'Sudan', keywords: ['sudan', 'khartoum'], lat: 15.5, lon: 32.5 },
+  { country: 'Ethiopia', keywords: ['ethiopia', 'addis ababa'], lat: 9.0, lon: 38.7 },
+  { country: 'Nigeria', keywords: ['nigeria', 'lagos', 'abuja'], lat: 9.0, lon: 8.0 },
+  { country: 'Somalia', keywords: ['somalia', 'mogadishu', 'al-shabaab'], lat: 5.0, lon: 46.0 },
+  { country: 'Libya', keywords: ['libya', 'tripoli'], lat: 27.0, lon: 17.0 },
+  { country: 'DR Congo', keywords: ['congo', 'kinshasa'], lat: -3.0, lon: 23.5 },
+  { country: 'Mali', keywords: ['mali', 'bamako'], lat: 17.0, lon: -4.0 },
+  { country: 'Niger', keywords: ['niger', 'niamey'], lat: 17.6, lon: 8.0 },
+  // Americas
+  { country: 'Venezuela', keywords: ['venezuela', 'caracas', 'maduro'], lat: 8.0, lon: -66.0 },
+  { country: 'Colombia', keywords: ['colombia', 'bogota'], lat: 4.6, lon: -74.0 },
+  { country: 'Mexico', keywords: ['mexico', 'mexican', 'cartel', 'mexico city'], lat: 23.6, lon: -102.5 },
+  { country: 'Brazil', keywords: ['brazil', 'brasilia', 'lula'], lat: -14.0, lon: -51.0 },
+  { country: 'Argentina', keywords: ['argentina', 'buenos aires'], lat: -34.0, lon: -64.0 },
+  { country: 'Cuba', keywords: ['cuba', 'havana'], lat: 22.0, lon: -79.5 },
+  { country: 'Haiti', keywords: ['haiti', 'port-au-prince'], lat: 18.9, lon: -72.3 },
+  // Central Asia / Caucasus
+  { country: 'Georgia', keywords: ['georgia', 'tbilisi'], lat: 42.0, lon: 43.5 },
+  { country: 'Armenia', keywords: ['armenia', 'yerevan'], lat: 40.0, lon: 45.0 },
+  { country: 'Azerbaijan', keywords: ['azerbaijan', 'baku'], lat: 40.1, lon: 47.5 },
+]
+
+/** Detect specific country from article text. Returns {country, lat, lon} or null. */
+function detectCountry(text: string): { country: string; lat: number; lon: number } | null {
+  const lower = text.toLowerCase()
+  for (const rule of COUNTRY_COORDS) {
+    for (const kw of rule.keywords) {
+      if (lower.includes(kw)) {
+        return { country: rule.country, lat: rule.lat, lon: rule.lon }
+      }
+    }
+  }
+  return null
+}
+
 /** Detect region from article title + content text */
 function detectRegion(text: string): string | null {
   const lower = text.toLowerCase()
@@ -512,6 +595,9 @@ async function promoteToIntelItem(article: Article): Promise<void> {
     : null
   const summary = rawSummary ? await translateIfNeeded(rawSummary) : null
 
+  // Detect country for more precise marker placement
+  const countryInfo = detectCountry(text)
+
   try {
     insertIntelItem({
       tier,
@@ -523,7 +609,9 @@ async function promoteToIntelItem(article: Article): Promise<void> {
       region: article.region,
       categories: article.topics ?? [],
       updated_at: null,
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // news: 24h TTL
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // news: 24h TTL
+      latitude: countryInfo?.lat ?? null,
+      longitude: countryInfo?.lon ?? null
     })
     // Mark this title as seen so future duplicates are caught
     markIntelTitleSeen(articleTitle, article.region)

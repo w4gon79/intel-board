@@ -183,6 +183,9 @@ const BOMBER_PREFIXES = ['B52', 'B1B', 'B2', 'B2A', 'TU95', 'T95', 'TU160', 'T16
 /** Tanker keywords for fallback text matching */
 const TANKER_KEYWORDS = ['KC-135', 'KC-46', 'KC-10', 'KC-767', 'MRTT', 'A330 MRTT', 'K767', 'KC30', 'IL-78']
 
+/** Event types that use geographic proximity dedup (titles change as assets move) */
+const SPATIAL_EVENT_TYPES = ['airlift', 'formation_flight', 'task_force', 'hva_tracking', 'bomber_projection']
+
 // ─── Utility ────────────────────────────────────────────────
 
 function haversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -514,11 +517,34 @@ function syncTacticalEventsToIntelFeed(): void {
     const title = event.description.split('.')[0] + '.'
     const confidence = calculateConfidence(event)
 
-    // DB-level dedup: check if an intel item with the same title already exists and is not expired.
-    // This prevents re-creation of intel items on app restart when syncedEventIds is empty.
-    const existingItem = db.prepare(
-      `SELECT id FROM intel_items WHERE title = ? AND datetime(expires_at) > datetime('now') LIMIT 1`
-    ).get(title) as { id: string } | undefined
+    // DB-level dedup
+    // For spatial events (airlift, formation_flight, task_force, hva_tracking, bomber_projection),
+    // use geographic proximity instead of exact title match,
+    // since titles change as aircraft move and detection varies.
+    let existingItem: { id: string } | undefined
+
+    if (SPATIAL_EVENT_TYPES.includes(event.event_type) && event.latitude != null && event.longitude != null) {
+      // Geographic proximity dedup: same event type within 2 degrees and not expired
+      existingItem = db.prepare(
+        `SELECT id FROM intel_items 
+         WHERE categories LIKE ?
+           AND datetime(expires_at) > datetime('now')
+           AND latitude BETWEEN ? AND ?
+           AND longitude BETWEEN ? AND ?
+         LIMIT 1`
+      ).get(
+        `%"${event.event_type}"%`,
+        (event.latitude as number) - 2,
+        (event.latitude as number) + 2,
+        (event.longitude as number) - 2,
+        (event.longitude as number) + 2
+      ) as { id: string } | undefined
+    } else {
+      // Non-spatial events: use exact title match (existing behavior)
+      existingItem = db.prepare(
+        `SELECT id FROM intel_items WHERE title = ? AND datetime(expires_at) > datetime('now') LIMIT 1`
+      ).get(title) as { id: string } | undefined
+    }
 
     if (!existingItem) {
       insertIntelItem({
@@ -531,11 +557,31 @@ function syncTacticalEventsToIntelFeed(): void {
         region: event.region,
         categories: [event.event_type, 'tactical'],
         updated_at: null,
-        expires_at: new Date(Date.now() + (['airlift', 'hva_tracking', 'formation_flight', 'bomber_projection'].includes(event.event_type) ? 4 : 24) * 60 * 60 * 1000).toISOString(),
+        expires_at: new Date(Date.now() + (SPATIAL_EVENT_TYPES.includes(event.event_type) ? 4 : 24) * 60 * 60 * 1000).toISOString(),
         latitude: event.latitude,
         longitude: event.longitude
       })
       console.log(`[TacticalEngine] Intel item created: ${title}`)
+    } else if (SPATIAL_EVENT_TYPES.includes(event.event_type) && event.latitude != null && event.longitude != null) {
+      // Update existing nearby item with latest position and description
+      db.prepare(
+        `UPDATE intel_items SET 
+           title = ?, summary = ?, latitude = ?, longitude = ?, 
+           region = ?, sources = ?, confidence = ?,
+           expires_at = ?, updated_at = datetime('now')
+         WHERE id = ?`
+      ).run(
+        title,
+        event.description,
+        event.latitude,
+        event.longitude,
+        event.region,
+        JSON.stringify(event.assets),
+        confidence,
+        new Date(Date.now() + (SPATIAL_EVENT_TYPES.includes(event.event_type) ? 4 : 24) * 60 * 60 * 1000).toISOString(),
+        existingItem.id
+      )
+      console.log(`[TacticalEngine] Updated intel item ${existingItem.id}: ${title}`)
     }
 
     syncedEventIds.add(event.id)
@@ -1268,5 +1314,22 @@ export function cleanupStaleTacticalData(): void {
     }
   } catch (err) {
     console.error('[TacticalEngine] Airlift cleanup error:', err instanceof Error ? err.message : String(err))
+  }
+
+  // Clean up stale airlift intel items (pre-dedup-fix backlog)
+  try {
+    const db = getDatabase()
+    if (db) {
+      const staleResult = db.prepare(
+        `DELETE FROM intel_items 
+         WHERE categories LIKE '%airlift%' 
+           AND datetime(expires_at) <= datetime('now')`
+      ).run()
+      if (staleResult.changes > 0) {
+        console.log(`[TacticalEngine] Cleaned up ${staleResult.changes} expired airlift intel items`)
+      }
+    }
+  } catch (err) {
+    console.error('[TacticalEngine] Stale airlift intel cleanup error:', err instanceof Error ? err.message : String(err))
   }
 }
