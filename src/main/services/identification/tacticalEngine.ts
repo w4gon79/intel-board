@@ -359,6 +359,45 @@ function isRecentEvent(eventType: string, region: string, withinHours: number): 
   return (row?.cnt ?? 0) > 0
 }
 
+/**
+ * Check if an active tactical event of the given type exists within
+ * `radiusDeg` degrees of (lat, lon) AND with matching direction in the region string.
+ * This is more robust than exact region matching for moving aircraft clusters.
+ */
+function isNearbyActiveEvent(
+  eventType: string,
+  lat: number,
+  lon: number,
+  radiusDeg: number,
+  withinHours: number,
+  directionMatch?: string
+): boolean {
+  const db = getDatabase()
+  if (!db) return false
+
+  let query = `SELECT COUNT(*) as cnt FROM tactical_events
+     WHERE event_type = ? AND status = 'active'
+       AND datetime(detected_at) >= datetime('now', ?)
+       AND latitude BETWEEN ? AND ?
+       AND longitude BETWEEN ? AND ?`
+  const params: unknown[] = [
+    eventType,
+    `-${withinHours} hours`,
+    lat - radiusDeg,
+    lat + radiusDeg,
+    lon - radiusDeg,
+    lon + radiusDeg
+  ]
+
+  if (directionMatch) {
+    query += ` AND region LIKE ?`
+    params.push(`%-${directionMatch}-%`)
+  }
+
+  const row = db.prepare(query).get(...params) as { cnt: number } | undefined
+  return (row?.cnt ?? 0) > 0
+}
+
 function hydrateTacticalEvent(row: Record<string, unknown>): TacticalEvent {
   return {
     id: row.id as string,
@@ -589,8 +628,8 @@ function detectAirlifts(): void {
       const regionName = region?.name || 'unknown region'
       const eventRegion = `airlift-${direction}-${regionName}`
 
-      // Dedup: check if active airlift event exists for this bearing+region
-      if (isRecentEvent('airlift', eventRegion, 2)) continue
+      // Dedup: check if active airlift event exists within ~2 degrees (~200km) with same bearing direction
+      if (isNearbyActiveEvent('airlift', centroid.lat, centroid.lon, 2, 2, direction)) continue
 
       const description =
         `Airlift operation detected: ${group.length} ${typeSummary.join('/')} aircraft ` +
@@ -1208,4 +1247,26 @@ export function cleanupStaleTacticalData(): void {
     // Table may already exist
   }
   resolveOldEvents()
+
+  // One-time cleanup: resolve active airlift events older than 1 hour
+  // (aggressive dedup cleanup for the airlift duplication problem)
+  try {
+    const db = getDatabase()
+    if (db) {
+      const result = db
+        .prepare(
+          `UPDATE tactical_events
+           SET status = 'resolved', resolved_at = datetime('now')
+           WHERE event_type = 'airlift'
+             AND status = 'active'
+             AND datetime(detected_at) < datetime('now', '-1 hour')`
+        )
+        .run()
+      if (result.changes > 0) {
+        console.log(`[TacticalEngine] Cleanup: resolved ${result.changes} stale airlift events (>1h old)`)
+      }
+    }
+  } catch (err) {
+    console.error('[TacticalEngine] Airlift cleanup error:', err instanceof Error ? err.message : String(err))
+  }
 }
