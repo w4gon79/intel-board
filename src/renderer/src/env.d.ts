@@ -301,6 +301,10 @@ declare global {
       enabled: boolean
       intervalMs: number
     }
+    senseMaking: {
+      enabled: boolean
+      intervalMinutes: number
+    }
     apiKeys: {
       newsApiKey: string
       openskyUsername: string

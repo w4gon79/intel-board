@@ -1,8 +1,9 @@
 /**
  * AI Sense-Making Engine (Phase 4E)
  *
- * Runs periodically (every 30 minutes) and generates AI-analyzed intel items
+ * Runs periodically and generates AI-analyzed intel items
  * from the fusion of tactical events, CSG positions, and recent news.
+ * Interval is configurable via Settings (30 min – 24 h, default 2 h).
  */
 
 import { getDatabase } from './storage/database'
@@ -536,12 +537,29 @@ function severityToConfidence(severity: string): number {
 let senseMakingTimer: ReturnType<typeof setInterval> | null = null
 
 /**
- * Start the sense-making scheduler (every 30 minutes, first run after 2 min delay).
+ * Start the sense-making scheduler. Reads interval from settings.
  */
 export function startSenseMakingScheduler(): void {
   if (senseMakingTimer) return
 
-  console.log('[SenseMaking] Starting scheduler (30 min interval)')
+  // Read interval from settings (default 2 hours)
+  let intervalMinutes = 120 // 2h default
+  try {
+    const { loadSettings } = require('../ipc/settings.handlers')
+    const settings = loadSettings()
+    if (settings.senseMaking?.intervalMinutes) {
+      intervalMinutes = Math.max(30, Math.min(1440, settings.senseMaking.intervalMinutes))
+    }
+    if (!settings.senseMaking?.enabled) {
+      console.log('[SenseMaking] Disabled in settings')
+      return
+    }
+  } catch {
+    // Settings not available yet, use default
+  }
+
+  const intervalMs = intervalMinutes * 60 * 1000
+  console.log(`[SenseMaking] Starting scheduler (${intervalMinutes} min interval)`)
 
   // First run after 2-minute delay (let data populate first)
   setTimeout(async () => {
@@ -552,14 +570,14 @@ export function startSenseMakingScheduler(): void {
     }
   }, 2 * 60 * 1000)
 
-  // Subsequent runs every 30 minutes
+  // Subsequent runs at configured interval
   senseMakingTimer = setInterval(async () => {
     try {
       await runSenseMaking()
     } catch (err) {
       console.error('[SenseMaking] Scheduled run failed:', err instanceof Error ? err.message : String(err))
     }
-  }, 30 * 60 * 1000)
+  }, intervalMs)
 }
 
 /**

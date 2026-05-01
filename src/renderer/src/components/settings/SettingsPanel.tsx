@@ -250,6 +250,63 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
             </div>
           </Section>
 
+          {/* ── AI Sense-Making ── */}
+          <Section title="AI Sense-Making">
+            <div className="rounded-md border border-zinc-800 bg-zinc-900/50 p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-medium text-zinc-300">Intelligence Analysis</span>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">
+                    Periodic AI analysis of tactical events, fleet posture, and choke point traffic.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={settings.senseMaking.enabled}
+                  onClick={() =>
+                    setSettings({
+                      ...settings,
+                      senseMaking: { ...settings.senseMaking, enabled: !settings.senseMaking.enabled }
+                    })
+                  }
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                    settings.senseMaking.enabled ? 'bg-emerald-600' : 'bg-zinc-700'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                      settings.senseMaking.enabled ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              {settings.senseMaking.enabled && (
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="text-[10px] text-zinc-500">Interval</label>
+                  <select
+                    value={settings.senseMaking.intervalMinutes}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        senseMaking: { ...settings.senseMaking, intervalMinutes: Number(e.target.value) }
+                      })
+                    }
+                    className="rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-[10px] text-zinc-300 focus:outline-none"
+                  >
+                    <option value={30}>30 min</option>
+                    <option value={60}>1 hour</option>
+                    <option value={120}>2 hours</option>
+                    <option value={240}>4 hours</option>
+                    <option value={360}>6 hours</option>
+                    <option value={720}>12 hours</option>
+                    <option value={1440}>24 hours</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          </Section>
+
           {/* ── API Keys ── */}
           <Section title="API Keys">
             <ApiKeysPanel

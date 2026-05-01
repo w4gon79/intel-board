@@ -77,6 +77,11 @@ export interface AppSettings {
     enabled: boolean
     intervalMs: number
   }
+  // AI Sense-Making (Phase 4E)
+  senseMaking: {
+    enabled: boolean
+    intervalMinutes: number // 30 to 1440 (24h), default 120 (2h)
+  }
   // API Keys (configured via Settings panel, persisted to settings.json)
   apiKeys: {
     newsApiKey: string
@@ -140,6 +145,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   economic: {
     enabled: true,
     intervalMs: 1800000 // 30 minutes
+  },
+  senseMaking: {
+    enabled: true,
+    intervalMinutes: 120 // 2 hours
   },
   apiKeys: {
     newsApiKey: '',
@@ -245,6 +254,7 @@ export function loadSettings(): AppSettings {
         bluesky: { ...DEFAULT_SETTINGS.socialMedia.bluesky, ...parsed.socialMedia?.bluesky }
       },
       economic: { ...DEFAULT_SETTINGS.economic, ...parsed.economic },
+      senseMaking: { ...DEFAULT_SETTINGS.senseMaking, ...parsed.senseMaking },
       apiKeys: { ...DEFAULT_SETTINGS.apiKeys, ...parsed.apiKeys }
     }
   } catch {
@@ -392,6 +402,17 @@ export function registerSettingsHandlers(): void {
         }
       } catch (remoteErr) {
         console.warn('[SETTINGS] Remote server toggle error:', remoteErr)
+      }
+
+      // Restart sense-making scheduler if config changed
+      try {
+        const { stopSenseMakingScheduler, startSenseMakingScheduler } = require('../services/senseMakingEngine')
+        stopSenseMakingScheduler()
+        if (merged.senseMaking.enabled) {
+          startSenseMakingScheduler()
+        }
+      } catch (smErr) {
+        console.warn('[SETTINGS] Sense-making scheduler restart error:', smErr)
       }
 
       return { success: true }
