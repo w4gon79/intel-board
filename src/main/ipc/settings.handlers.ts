@@ -7,6 +7,7 @@ import { join } from 'path'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { config, reloadConfigFromSettings } from '../utils/config'
 import { remoteServer } from '../services/remote/httpServer'
+import { stopSenseMakingScheduler, startSenseMakingScheduler } from '../services/senseMakingEngine'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -406,7 +407,6 @@ export function registerSettingsHandlers(): void {
 
       // Restart sense-making scheduler if config changed
       try {
-        const { stopSenseMakingScheduler, startSenseMakingScheduler } = require('../services/senseMakingEngine')
         stopSenseMakingScheduler()
         if (merged.senseMaking.enabled) {
           startSenseMakingScheduler()

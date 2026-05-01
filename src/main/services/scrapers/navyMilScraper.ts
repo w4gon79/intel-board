@@ -4,8 +4,8 @@
  * Scrapes official US Navy news releases via RSS.
  * High-value source for deployments, exercises, ship movements.
  *
- * Primary: DVIDS (Defense Visual Information Distribution Service) US Navy unit feed
- * Fallback: Google News RSS proxy for navy.mil content
+ * Primary: Google News RSS for navy.mil content and Navy deployment news
+ * Fallback: DVIDS US Navy unit feed (may be stale)
  */
 
 import { BaseScraper, ScrapedArticle, ScraperSource, parseRssXml, fetchUrl, matchesKeywords } from './scraperFramework'
@@ -20,10 +20,12 @@ const RELEVANCE_KEYWORDS = [
 
 /** Ordered list of feed URLs – first to return articles wins */
 const FEED_URLS = [
-  // DVIDS US Navy unit RSS feed
-  'https://www.dvidshub.net/rss/unit/1802',
-  // Google News proxy for Navy content
-  'https://news.google.com/rss/search?q=site%3Anavy.mil+OR+site%3Adefense.gov+navy+deployment+OR+exercise+OR+carrier+OR+strike+group&hl=en-US&gl=US&ceid=US:en'
+  // Navy.mil news via Google News (tested: returns 100 items)
+  'https://news.google.com/rss/search?q=site%3Anavy.mil&hl=en-US&gl=US&ceid=US:en',
+  // Navy deployment/carrier news via Google News (tested: returns 100 items)
+  'https://news.google.com/rss/search?q=navy+deployment+OR+carrier+strike+group+OR+amphibious+ready+group&hl=en-US&gl=US&ceid=US:en',
+  // DVIDS Navy news feed (may be stale, kept as last resort)
+  'https://www.dvidshub.net/rss/unit/1802'
 ]
 
 export class NavyMilScraper extends BaseScraper {
@@ -31,7 +33,7 @@ export class NavyMilScraper extends BaseScraper {
     id: 'navy-mil',
     name: 'Navy News',
     url: FEED_URLS[0],
-    interval: 60 * 60 * 1000, // 1 hour
+    interval: 2 * 60 * 60 * 1000, // 2 hours
     type: 'rss',
     enabled: true
   }

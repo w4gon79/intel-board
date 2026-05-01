@@ -4,8 +4,8 @@
  * Monitors key OSINT accounts via Nitter RSS bridges.
  * Often breaks news hours before mainstream media.
  *
- * Primary: Nitter RSS instances with 5s timeout per account
- * Fallback: Google News RSS for OSINT military content
+ * Primary: Google News RSS for OSINT military content (reliable)
+ * Fallback: Nitter RSS instances (unreliable, frequently down)
  */
 
 import { BaseScraper, ScrapedArticle, ScraperSource, parseRssXml, fetchUrl } from './scraperFramework'
@@ -25,24 +25,42 @@ const NITTER_INSTANCES = [
   'xcancel.com'
 ]
 
-/** Google News RSS fallback for OSINT military content */
+/** Google News RSS primary for OSINT military content */
 const GOOGLE_NEWS_OSINT =
-  'https://news.google.com/rss/search?q=%22OSINT%22+OR+%22open+source+intelligence%22+military+OR+naval+OR+warship+OR+tracking&hl=en-US&gl=US&ceid=US:en'
+  'https://news.google.com/rss/search?q=OSINT+military+OR+naval+OR+warship+OR+satellite+imagery+OR+flight+tracking+OR+%22open+source+intelligence%22&hl=en-US&gl=US&ceid=US:en'
 
 export class OsintTwitterScraper extends BaseScraper {
   source: ScraperSource = {
     id: 'osint-twitter',
     name: 'OSINT Social',
     url: '', // Multiple URLs, handled in fetch()
-    interval: 15 * 60 * 1000, // 15 min
+    interval: 30 * 60 * 1000, // 30 min
     type: 'rss',
     enabled: true
   }
 
   async fetch(): Promise<ScrapedArticle[]> {
-    const allArticles: ScrapedArticle[] = []
+    // Phase 1: Try Google News first (stable, reliable)
+    try {
+      const xml = await fetchUrl(GOOGLE_NEWS_OSINT, 10000)
+      const items = parseRssXml(xml)
 
-    // Phase 1: Try Nitter instances for each account
+      if (items.length > 0) {
+        return items.map((item) => ({
+          title: item.title,
+          description: item.description,
+          url: item.link,
+          source: this.source.id,
+          publishedAt: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
+          category: 'osint' as const
+        }))
+      }
+    } catch {
+      // Google News failed, fall through to Nitter
+    }
+
+    // Phase 2: Fallback to Nitter instances
+    const allArticles: ScrapedArticle[] = []
     for (const account of ACCOUNTS) {
       try {
         const articles = await this.fetchAccount(account)
@@ -53,25 +71,7 @@ export class OsintTwitterScraper extends BaseScraper {
       }
     }
 
-    // If Nitter yielded results, return them
-    if (allArticles.length > 0) return allArticles
-
-    // Phase 2: Fallback to Google News OSINT query
-    try {
-      const xml = await fetchUrl(GOOGLE_NEWS_OSINT, 10000)
-      const items = parseRssXml(xml)
-
-      return items.map((item) => ({
-        title: item.title,
-        description: item.description,
-        url: item.link,
-        source: this.source.id,
-        publishedAt: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString(),
-        category: 'osint' as const
-      }))
-    } catch {
-      return []
-    }
+    return allArticles
   }
 
   private async fetchAccount(account: string): Promise<ScrapedArticle[] | null> {
