@@ -96,6 +96,53 @@ function haversineDistanceNm(lat1: number, lon1: number, lat2: number, lon2: num
   return (R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))) / 1.852
 }
 
+// ── Home Territory Filtering ───────────────────────────────
+
+const HOME_TERRITORY: Record<string, { latMin: number; latMax: number; lonMin: number; lonMax: number }> = {
+  US: { latMin: 24, latMax: 50, lonMin: -125, lonMax: -66 },
+  Canada: { latMin: 42, latMax: 83, lonMin: -141, lonMax: -52 },
+  UK: { latMin: 49, latMax: 61, lonMin: -8, lonMax: 2 },
+  France: { latMin: 42, latMax: 51, lonMin: -5, lonMax: 8 },
+  Germany: { latMin: 47, latMax: 55, lonMin: 5, lonMax: 15 },
+  Italy: { latMin: 36, latMax: 47, lonMin: 6, lonMax: 19 },
+  Spain: { latMin: 36, latMax: 44, lonMin: -10, lonMax: 4 },
+  Turkey: { latMin: 36, latMax: 42, lonMin: 26, lonMax: 45 },
+  Australia: { latMin: -44, latMax: -10, lonMin: 113, lonMax: 155 },
+  Japan: { latMin: 30, latMax: 46, lonMin: 128, lonMax: 146 },
+  // Russia intentionally excluded - military flights over Russia near conflict zones ARE significant
+}
+
+const ISO_CODE_MAP: Record<string, string> = {
+  'US': 'USA', 'Canada': 'CAN', 'UK': 'GBR', 'France': 'FRA',
+  'Germany': 'DEU', 'Italy': 'ITA', 'Spain': 'ESP', 'Turkey': 'TUR',
+  'Australia': 'AUS', 'Japan': 'JPN'
+}
+
+const HOME_PORT_REGIONS = [
+  { name: 'Norfolk', lat: 36.9, lon: -76.3, radiusNm: 100 },
+  { name: 'San Diego', lat: 32.7, lon: -117.2, radiusNm: 100 },
+  { name: 'Portsmouth', lat: 50.8, lon: -1.1, radiusNm: 50 },
+  { name: 'Toulon', lat: 43.1, lon: 5.9, radiusNm: 50 },
+  { name: 'Yokosuka', lat: 35.3, lon: 139.7, radiusNm: 50 },
+]
+
+function isOverHomeTerritory(lat: number, lon: number, originCountry: string | null): boolean {
+  if (!originCountry) return false
+  const countryKey = originCountry.toUpperCase()
+  for (const [name, box] of Object.entries(HOME_TERRITORY)) {
+    if (countryKey === name.toUpperCase() || countryKey === (ISO_CODE_MAP[name] || name)) {
+      return lat >= box.latMin && lat <= box.latMax && lon >= box.lonMin && lon <= box.lonMax
+    }
+  }
+  return false
+}
+
+function isNearHomePort(lat: number, lon: number): boolean {
+  return HOME_PORT_REGIONS.some(port =>
+    haversineDistanceNm(lat, lon, port.lat, port.lon) <= port.radiusNm
+  )
+}
+
 function recencyFactor(timestamp: string): number {
   const ageMs = Date.now() - new Date(timestamp).getTime()
   const ageHours = ageMs / (1000 * 60 * 60)
@@ -135,13 +182,15 @@ function gatherSignals(): Signal[] {
   // Flights - military aircraft density (last 6h, sampled)
   try {
     const rows = db.prepare(`
-      SELECT icao24, latitude, longitude, timestamp FROM flights
+      SELECT icao24, latitude, longitude, timestamp, origin_country FROM flights
       WHERE is_military = 1
         AND datetime(timestamp) > datetime('now', '-6 hours')
         AND latitude IS NOT NULL AND longitude IS NOT NULL
       GROUP BY icao24
-    `).all() as Array<{ icao24: string; latitude: number; longitude: number; timestamp: string }>
+    `).all() as Array<{ icao24: string; latitude: number; longitude: number; timestamp: string; origin_country: string | null }>
     for (const r of rows) {
+      // Skip military aircraft over their own country - these are routine training/transit
+      if (isOverHomeTerritory(r.latitude, r.longitude, r.origin_country)) continue
       signals.push({ lat: r.latitude, lon: r.longitude, weight: SIGNAL_WEIGHTS.flights, sourceType: 'adsb', evidenceId: r.icao24, timestamp: r.timestamp })
     }
   } catch { /* ignore */ }
@@ -158,6 +207,8 @@ function gatherSignals(): Signal[] {
       GROUP BY mmsi
     `).all() as Array<{ mmsi: string; latitude: number; longitude: number; timestamp: string }>
     for (const r of rows) {
+      // Skip military vessels near known home ports - routine port operations
+      if (isNearHomePort(r.latitude, r.longitude)) continue
       signals.push({ lat: r.latitude, lon: r.longitude, weight: SIGNAL_WEIGHTS.vessels, sourceType: 'ais', evidenceId: r.mmsi, timestamp: r.timestamp })
     }
   } catch { /* ignore */ }
@@ -248,7 +299,17 @@ function dbscanCluster(signals: Signal[]): Cluster[] {
 
     const heatScore = clusterSignals.reduce((sum, s) => sum + s.weight * recencyFactor(s.timestamp), 0)
     const sourceTypes = new Set(clusterSignals.map(s => s.sourceType))
-    const evidenceIds = clusterSignals.map(s => s.evidenceId)
+
+    // Store only meaningful evidence IDs - prefer quality sources over raw flight/vessel IDs
+    const qualityEvidenceIds = clusterSignals
+      .filter(s => ['tactical', 'intel', 'article', 'notam', 'anomaly'].includes(s.sourceType))
+      .map(s => s.evidenceId)
+    const evidenceIds = qualityEvidenceIds.length >= 5
+      ? qualityEvidenceIds
+      : [...qualityEvidenceIds, ...clusterSignals
+          .filter(s => ['adsb', 'ais'].includes(s.sourceType))
+          .map(s => s.evidenceId)
+        ].slice(0, 50)
 
     let totalWeight = 0
     let wLat = 0
@@ -346,6 +407,12 @@ export function runZoneEngine(): void {
 
       const now = new Date().toISOString()
 
+      // Require multi-source corroboration for NEW zone creation
+      const hasQualitySource = cluster.sourceTypes.has('article')
+        || cluster.sourceTypes.has('notam')
+        || (cluster.sourceTypes.has('intel') && cluster.signals.some(s => s.sourceType === 'intel'))
+        || (cluster.sourceTypes.has('tactical') && cluster.signals.some(s => s.sourceType === 'tactical'))
+
       if (existingZone) {
         const prevScore = existingZone.heat_score
         const newScore = prevScore + cluster.heatScore
@@ -379,6 +446,12 @@ export function runZoneEngine(): void {
           existingZone.id
         )
       } else {
+        // Don't create NEW zones from only raw flight/vessel data
+        if (!hasQualitySource) {
+          console.log(`[ZoneEngine] Skipping zone creation at ${cluster.centerLat.toFixed(1)},${cluster.centerLon.toFixed(1)} - no corroborating evidence (sources: ${[...cluster.sourceTypes].join(',')})`)
+          continue
+        }
+
         const newSensitivity = computeSensitivity(cluster.heatScore)
         db.prepare(`
           INSERT INTO conflict_zones (id, name, status, heat_score, center_lat, center_lon, radius_nm, sensitivity, signal_count, source_types, evidence_ids, last_signal_at)
@@ -450,18 +523,34 @@ export function getZoneDetail(zoneId: string): { zone: ConflictZoneRow; evidence
     if (evidenceIds.length > 0) {
       const placeholders = evidenceIds.map(() => '?').join(',')
 
+      // Tactical events
       try {
-        const events = db.prepare(
-          `SELECT id, event_type, severity, description, region, detected_at, latitude, longitude FROM tactical_events WHERE id IN (${placeholders})`
-        ).all(...evidenceIds) as Array<Record<string, unknown>>
-        evidence.push(...events.map(e => ({ ...e, source_table: 'tactical_events' })))
+        const events = db.prepare(`SELECT id, event_type, severity, description, detected_at FROM tactical_events WHERE id IN (${placeholders})`).all(...evidenceIds)
+        evidence.push(...(events as Array<Record<string, unknown>>).map(e => ({ ...e, source_table: 'tactical_events', display_title: (e as { description?: string }).description })))
       } catch { /* ignore */ }
 
+      // Intel items
       try {
-        const items = db.prepare(
-          `SELECT id, title, summary, tier, confidence, created_at, latitude, longitude FROM intel_items WHERE id IN (${placeholders})`
-        ).all(...evidenceIds) as Array<Record<string, unknown>>
-        evidence.push(...items.map(e => ({ ...e, source_table: 'intel_items' })))
+        const items = db.prepare(`SELECT id, title, summary, tier, confidence, created_at FROM intel_items WHERE id IN (${placeholders})`).all(...evidenceIds)
+        evidence.push(...(items as Array<Record<string, unknown>>).map(e => ({ ...e, source_table: 'intel_items', display_title: (e as { title?: string }).title })))
+      } catch { /* ignore */ }
+
+      // News articles
+      try {
+        const articles = db.prepare(`SELECT id, title, summary, source_name, published_at FROM articles WHERE id IN (${placeholders})`).all(...evidenceIds)
+        evidence.push(...(articles as Array<Record<string, unknown>>).map(e => ({ ...e, source_table: 'articles', display_title: (e as { title?: string }).title })))
+      } catch { /* ignore */ }
+
+      // NOTAMs
+      try {
+        const notams = db.prepare(`SELECT id, type, description, effective_start FROM notams WHERE id IN (${placeholders})`).all(...evidenceIds)
+        evidence.push(...(notams as Array<Record<string, unknown>>).map(e => ({ ...e, source_table: 'notams', display_title: (e as { description?: string }).description })))
+      } catch { /* ignore */ }
+
+      // Flights (only included as evidence when no other sources)
+      try {
+        const flights = db.prepare(`SELECT icao24, callsign, aircraft_type, timestamp FROM flights WHERE id IN (${placeholders})`).all(...evidenceIds)
+        evidence.push(...(flights as Array<Record<string, unknown>>).map(e => ({ ...e, source_table: 'flights', display_title: `${(e as { aircraft_type?: string; icao24?: string }).aircraft_type || (e as { icao24?: string }).icao24}` })))
       } catch { /* ignore */ }
     }
 

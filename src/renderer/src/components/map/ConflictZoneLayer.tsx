@@ -225,9 +225,20 @@ export default function ConflictZoneLayer({ map, visible }: Props) {
         const detail = await window.api.zone.detail(zoneId)
         if (detail) {
           const zone = detail.zone as ConflictZone
-          const evidence = detail.evidence as Array<{ title: string; summary: string }>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const evidence = detail.evidence as Array<Record<string, any>>
           const evidenceText = evidence && evidence.length > 0
-            ? evidence.map((ev, i) => `  ${i + 1}. ${ev.title}`).join('\n')
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ? evidence.map((ev: any, i: number) => {
+                const sourceLabel = ev.source_table === 'tactical_events' ? 'TAC'
+                  : ev.source_table === 'intel_items' ? 'INTEL'
+                  : ev.source_table === 'articles' ? 'NEWS'
+                  : ev.source_table === 'notams' ? 'NOTAM'
+                  : ev.source_table === 'flights' ? 'ADSB'
+                  : 'OTHER'
+                const title = ev.display_title || ev.title || ev.description || 'Unknown evidence item'
+                return `  ${i + 1}. [${sourceLabel}] ${String(title).substring(0, 120)}`
+              }).join('\n')
             : '  No linked evidence'
           alert(
             `📍 ${zone.name}\n` +

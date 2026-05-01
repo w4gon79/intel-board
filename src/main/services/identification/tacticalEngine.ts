@@ -765,6 +765,11 @@ function detectHvaProximity(): void {
 
       if (!matchedProfile) continue
 
+      // Tankers and transports are logistics, not combat posture.
+      // Don't generate tactical events for them - they create feedback loops
+      // in the conflict zone engine.
+      if (matchedProfile.category === 'tanker' || matchedProfile.category === 'transport') continue
+
       // Check proximity to each conflict zone
       for (const zone of zones) {
         const distKm = haversineDistanceKm(flight.latitude!, flight.longitude!, zone.lat, zone.lon)
