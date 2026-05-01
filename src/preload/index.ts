@@ -304,6 +304,18 @@ const api = {
     refresh: () => ipcRenderer.invoke('zone:refresh')
   },
 
+  // ── NOTAM (Military/Defense Airspace Restrictions) ──
+  notam: {
+    /** List active NOTAMs */
+    list: (limit?: number) => ipcRenderer.invoke('notam:list', limit),
+    /** Get NOTAMs within a conflict zone's radius */
+    byZone: (zoneId: string) => ipcRenderer.invoke('notam:by-zone', zoneId),
+    /** Manually trigger NOTAM poll */
+    refresh: () => ipcRenderer.invoke('notam:refresh'),
+    /** Get NOTAM status */
+    status: () => ipcRenderer.invoke('notam:status')
+  },
+
   // ── Alert Rules (Phase 5A) ──
   alertRules: {
     list: () => ipcRenderer.invoke('alert-rules:list'),

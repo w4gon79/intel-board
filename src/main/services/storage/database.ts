@@ -332,8 +332,33 @@ CREATE TABLE IF NOT EXISTS conflict_zones (
 CREATE INDEX IF NOT EXISTS idx_conflict_zones_status ON conflict_zones(status);
 CREATE INDEX IF NOT EXISTS idx_conflict_zones_heat ON conflict_zones(heat_score DESC);
 
--- Custom alert rules (Phase 5A)
-CREATE TABLE IF NOT EXISTS alert_rules (
+  -- NOTAMs — military/defense NOTAMs as zone engine signals
+  CREATE TABLE IF NOT EXISTS notams (
+    id TEXT PRIMARY KEY,
+    raw_text TEXT NOT NULL,
+    summary TEXT,
+    type TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    lat REAL,
+    lon REAL,
+    altitude_floor_ft INTEGER,
+    altitude_ceiling_ft INTEGER,
+    effective_start TEXT,
+    effective_end TEXT,
+    location_designator TEXT,
+    icao_code TEXT,
+    source TEXT DEFAULT 'faa',
+    classified_by_llm BOOLEAN DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_notams_status ON notams(status);
+  CREATE INDEX IF NOT EXISTS idx_notams_type ON notams(type);
+  CREATE INDEX IF NOT EXISTS idx_notams_coords ON notams(lat, lon) WHERE lat IS NOT NULL;
+
+  -- Custom alert rules (Phase 5A)
+  CREATE TABLE IF NOT EXISTS alert_rules (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   enabled INTEGER NOT NULL DEFAULT 1,

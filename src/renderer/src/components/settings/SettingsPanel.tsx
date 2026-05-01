@@ -250,6 +250,60 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
             </div>
           </Section>
 
+          {/* ── NOTAM (Military Airspace) ── */}
+          <Section title="NOTAM (Military Airspace)">
+            <div className="rounded-md border border-zinc-800 bg-zinc-900/50 p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-medium text-zinc-300">Military NOTAM Scanner</span>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">
+                    Ingest military/defense airspace restrictions from FAA. Free, no API key needed.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={settings.notam.enabled}
+                  onClick={() =>
+                    setSettings({
+                      ...settings,
+                      notam: { ...settings.notam, enabled: !settings.notam.enabled }
+                    })
+                  }
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+                    settings.notam.enabled ? 'bg-emerald-600' : 'bg-zinc-700'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                      settings.notam.enabled ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              {settings.notam.enabled && (
+                <div className="mt-2 flex items-center gap-2">
+                  <label className="text-[10px] text-zinc-500">Poll interval</label>
+                  <select
+                    value={settings.notam.intervalMs}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        notam: { ...settings.notam, intervalMs: Number(e.target.value) }
+                      })
+                    }
+                    className="rounded border border-zinc-700 bg-zinc-800 px-2 py-1 text-[10px] text-zinc-300 focus:outline-none"
+                  >
+                    <option value={2 * 60 * 60 * 1000}>2 hours</option>
+                    <option value={4 * 60 * 60 * 1000}>4 hours</option>
+                    <option value={6 * 60 * 60 * 1000}>6 hours</option>
+                    <option value={12 * 60 * 60 * 1000}>12 hours</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          </Section>
+
           {/* ── AI Sense-Making ── */}
           <Section title="AI Sense-Making">
             <div className="rounded-md border border-zinc-800 bg-zinc-900/50 p-3">

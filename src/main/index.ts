@@ -27,6 +27,7 @@ import { registerAlertRuleHandlers } from './ipc/alertRule.handlers'
 import { registerSocialMediaHandlers } from './ipc/socialMedia.handlers'
 import { registerEconomicHandlers } from './ipc/economic.handlers'
 import { registerZoneHandlers } from './ipc/zone.handlers'
+import { registerNotamHandlers, initNotamScheduler, stopNotamSchedulerHandlers } from './ipc/notam.handlers'
 import { startSenseMakingScheduler, stopSenseMakingScheduler } from './services/senseMakingEngine'
 import { setupContextMenu } from './contextMenu'
 import { startScrapers, stopScrapers } from './services/scrapers/scraperManager'
@@ -190,6 +191,7 @@ app.whenReady().then(() => {
   registerSocialMediaHandlers()
   registerEconomicHandlers()
   registerZoneHandlers()
+  registerNotamHandlers()
 
   // Pre-seed aircraft registry from OpenSky database (runs once if cache is empty)
   seedAircraftRegistryIfNeeded().catch((err) => {
@@ -232,6 +234,9 @@ app.whenReady().then(() => {
   } catch (err) {
     console.warn('[main] Could not auto-start economic monitoring:', err)
   }
+
+  // Start NOTAM scraper (4-hour polling cycle for military/defense NOTAMs)
+  initNotamScheduler()
 
   createWindow()
 
@@ -279,6 +284,7 @@ app.on('before-quit', async () => {
   stopAdsbHandlers()
   stopAisHandlers()
   stopSocialMediaScheduler()
+  stopNotamSchedulerHandlers()
   // Stop economic monitoring scheduler
   try {
     stopEconomicPolling()

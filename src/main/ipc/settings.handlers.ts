@@ -78,6 +78,11 @@ export interface AppSettings {
     enabled: boolean
     intervalMs: number
   }
+  // NOTAM Integration (Military/Defense Airspace)
+  notam: {
+    enabled: boolean
+    intervalMs: number
+  }
   // AI Sense-Making (Phase 4E)
   senseMaking: {
     enabled: boolean
@@ -146,6 +151,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   economic: {
     enabled: true,
     intervalMs: 1800000 // 30 minutes
+  },
+  notam: {
+    enabled: true,
+    intervalMs: 4 * 60 * 60 * 1000 // 4 hours
   },
   senseMaking: {
     enabled: true,
@@ -255,6 +264,7 @@ export function loadSettings(): AppSettings {
         bluesky: { ...DEFAULT_SETTINGS.socialMedia.bluesky, ...parsed.socialMedia?.bluesky }
       },
       economic: { ...DEFAULT_SETTINGS.economic, ...parsed.economic },
+      notam: { ...DEFAULT_SETTINGS.notam, ...parsed.notam },
       senseMaking: { ...DEFAULT_SETTINGS.senseMaking, ...parsed.senseMaking },
       apiKeys: { ...DEFAULT_SETTINGS.apiKeys, ...parsed.apiKeys }
     }

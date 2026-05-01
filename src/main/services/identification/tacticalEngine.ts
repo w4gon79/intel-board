@@ -16,7 +16,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getDatabase } from '../storage/database'
 import { insertIntelItem } from '../storage/dbService'
-import { getActiveConflictZones, type ConflictZoneRow } from '../analysis/zoneEngine'
+import { getActiveConflictZones } from '../analysis/zoneEngine'
 import { REGION_AREAS } from '../../../shared/regions'
 import type { IntelTier } from '../../../shared/types'
 

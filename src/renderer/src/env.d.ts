@@ -237,6 +237,22 @@ interface Window {
       stop: () => Promise<{ success: boolean }>
     }
 
+    // ── Dynamic Conflict Zones ──
+    zone: {
+      list: () => Promise<unknown[]>
+      detail: (id: string) => Promise<unknown>
+      history: () => Promise<unknown[]>
+      refresh: () => Promise<void>
+    }
+
+    // ── NOTAM (Military/Defense Airspace Restrictions) ──
+    notam: {
+      list: (limit?: number) => Promise<unknown[]>
+      byZone: (zoneId: string) => Promise<unknown[]>
+      refresh: () => Promise<{ success: boolean; error?: string }>
+      status: () => Promise<{ running: boolean; lastPoll: string | null; activeCount: number; error: string | null }>
+    }
+
     // ── Alert Rules (Phase 5A) ──
     alertRules: {
       list: () => Promise<unknown[]>
@@ -298,6 +314,10 @@ declare global {
       bluesky: { enabled: boolean; intervalMs: number }
     }
     economic: {
+      enabled: boolean
+      intervalMs: number
+    }
+    notam: {
       enabled: boolean
       intervalMs: number
     }

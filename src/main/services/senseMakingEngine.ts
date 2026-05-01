@@ -139,8 +139,30 @@ export async function runSenseMaking(): Promise<void> {
     }
   } catch { /* zone engine may not be ready */ }
 
+  // 8b. Get active NOTAM context (military/defense airspace restrictions)
+  let notamContext = ''
+  try {
+    const notamRow = db.prepare(
+      "SELECT COUNT(*) as count FROM notams WHERE status = 'active' AND (effective_end IS NULL OR effective_end > datetime('now'))"
+    ).get() as { count: number } | undefined
+    const notamCount = notamRow?.count ?? 0
+    if (notamCount > 0) {
+      const activeNotams = db.prepare(
+        `SELECT id, type, summary, lat, lon, effective_start, effective_end FROM notams
+         WHERE status = 'active' AND (effective_end IS NULL OR effective_end > datetime('now'))
+         ORDER BY effective_start DESC LIMIT 15`
+      ).all() as Array<{ id: string; type: string; summary: string | null; lat: number | null; lon: number | null; effective_start: string | null; effective_end: string | null }>
+      const notamLines = activeNotams.map(n => {
+        const coords = n.lat !== null && n.lon !== null ? ` at ${n.lat.toFixed(2)},${n.lon.toFixed(2)}` : ''
+        const timeWindow = n.effective_end ? ` until ${n.effective_end}` : ''
+        return `  ⚠️ [${n.type || 'NOTAM'}] ${n.summary || n.id}${coords}${timeWindow}`
+      }).join('\n')
+      notamContext = `${notamCount} active military NOTAMs:\n${notamLines}`
+    }
+  } catch { /* notams table may not exist yet */ }
+
   // 9. Build prompt
-  const prompt = buildAnalysisPrompt(events, csgContext, recentIntel, recentArticles, chokePointContext, socialContext, economicContext, zoneContext)
+  const prompt = buildAnalysisPrompt(events, csgContext, recentIntel, recentArticles, chokePointContext, socialContext, economicContext, zoneContext, notamContext)
 
   // 10. Call LLM
   try {
@@ -368,7 +390,8 @@ function buildAnalysisPrompt(
   chokePointContext: string,
   socialContext: string,
   economicContext: string,
-  zoneContext: string
+  zoneContext: string,
+  notamContext: string
 ): string {
   const eventStr = events.length > 0
     ? events.map(e => `  [${e.event_type}] ${e.description} (${e.region}, severity: ${e.severity})`).join('\n')
@@ -409,6 +432,9 @@ ${economicContext || 'No economic data available.'}
 
 DYNAMIC CONFLICT ZONES:
 ${zoneContext || '  No active conflict zones'}
+
+ACTIVE MILITARY NOTAMs (AIRSPACE RESTRICTIONS):
+${notamContext || '  No active military NOTAMs'}
 
 TASK:
 Identify 0-3 significant geopolitical developments based on the data above. For each:

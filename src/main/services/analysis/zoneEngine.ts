@@ -11,6 +11,7 @@
  *   - flights (weight: 1.0)
  *   - vessels (weight: 1.0)
  *   - intel_items (weight: 2.5)
+ *   - notams (weight: 2.5)
  *
  * Uses DBSCAN clustering (epsilon=200nm, min_samples=3) to group signals.
  * Zones decay by 0.85x each cycle, die naturally without fresh intelligence.
@@ -69,7 +70,6 @@ const DBSCAN_EPSILON_NM = 200
 const DBSCAN_MIN_SAMPLES = 3
 const MERGE_DISTANCE_NM = 300
 const BUFFER_NM = 50
-const AUTO_DELETE_RESOLVED_HOURS = 24
 
 const SIGNAL_WEIGHTS: Record<string, number> = {
   tactical_events: 3.0,
@@ -77,7 +77,8 @@ const SIGNAL_WEIGHTS: Record<string, number> = {
   articles: 1.5,
   flights: 1.0,
   vessels: 1.0,
-  intel_items: 2.5
+  intel_items: 2.5,
+  notams: 2.5
 }
 
 // ── Utility ────────────────────────────────────────────────
@@ -172,6 +173,26 @@ function gatherSignals(): Signal[] {
       signals.push({ lat: r.latitude, lon: r.longitude, weight: SIGNAL_WEIGHTS.intel_items, sourceType: 'intel', evidenceId: r.id, timestamp: r.created_at })
     }
   } catch { /* ignore */ }
+
+  // NOTAMs — active military/defense NOTAMs (weight: 2.5, official government data)
+  try {
+    const notamRows = db.prepare(`
+      SELECT id, lat, lon, type, effective_start FROM notams
+      WHERE status = 'active'
+        AND lat IS NOT NULL
+        AND (effective_end IS NULL OR effective_end > datetime('now'))
+    `).all() as Array<{ id: string; lat: number; lon: number; type: string; effective_start: string | null }>
+    for (const n of notamRows) {
+      signals.push({
+        lat: n.lat,
+        lon: n.lon,
+        weight: SIGNAL_WEIGHTS.notams,
+        sourceType: 'notam',
+        evidenceId: n.id,
+        timestamp: n.effective_start || new Date().toISOString()
+      })
+    }
+  } catch { /* table may not exist yet */ }
 
   return signals
 }
