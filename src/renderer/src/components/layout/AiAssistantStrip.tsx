@@ -43,8 +43,13 @@ const QUICK_QUESTIONS = [
 
 // ─── Component ─────────────────────────────────────────────────────────────
 
-export function AiAssistantStrip(): React.JSX.Element {
-  const [expanded, setExpanded] = useState(false)
+interface AiAssistantStripProps {
+  expanded?: boolean
+}
+
+export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripProps): React.JSX.Element {
+  const [expandedInternal, setExpandedInternal] = useState(false)
+  const expanded = expandedProp ?? expandedInternal
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -99,7 +104,7 @@ export function AiAssistantStrip(): React.JSX.Element {
       setMessages((prev) => [...prev, userMsg])
       setLoading(true)
 
-      if (!expanded) setExpanded(true)
+      if (!expanded) setExpandedInternal(true)
 
       try {
         const response = await window.api.ai.chat(msg)
@@ -135,11 +140,13 @@ export function AiAssistantStrip(): React.JSX.Element {
     }
   }
 
+  const isMobileExpanded = expandedProp === true
+
   return (
-    <div className={`shrink-0 border-t border-zinc-800 bg-zinc-950/80 transition-all ${expanded ? 'h-[240px]' : 'h-auto'}`}>
+    <div className={`border-t border-zinc-800 bg-zinc-950/80 transition-all ${isMobileExpanded ? 'flex flex-col flex-1 min-h-0' : 'shrink-0'} ${expanded && !isMobileExpanded ? 'h-[240px]' : !isMobileExpanded ? 'h-auto' : ''}`}>
       {/* ── Chat area (when expanded) ── */}
       {expanded && (
-        <div ref={scrollRef} className="h-[calc(100%-40px)] overflow-y-auto px-3 py-2 space-y-2.5 scrollbar-thin">
+        <div ref={scrollRef} className={`${isMobileExpanded ? 'flex-1 min-h-0' : 'h-[calc(100%-40px)]'} overflow-y-auto px-3 py-2 space-y-2.5 scrollbar-thin`}>
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3">
               <div className="text-center">
@@ -195,7 +202,7 @@ export function AiAssistantStrip(): React.JSX.Element {
       <div className="flex items-center gap-2 px-3 py-1.5">
         <button
           type="button"
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => setExpandedInternal(!expanded)}
           className="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300"
           title={expanded ? 'Collapse chat' : 'Expand chat'}
         >

@@ -39,7 +39,7 @@ import {
   getChokePointCounts,
   startAisStreaming,
   stopAisStreaming,
-  isAisConnected
+  getAisFeedHealth
 } from '../ais/aisService'
 
 // Data service functions
@@ -450,7 +450,7 @@ export class RemoteServer {
     })
 
     app.get('/api/ais/status', (_req, res) => {
-      res.json({ connected: isAisConnected() })
+      res.json(getAisFeedHealth())
     })
 
     app.post('/api/ais/startStreaming', (_req, res) => {

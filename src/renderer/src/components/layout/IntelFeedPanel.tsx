@@ -121,9 +121,9 @@ export function IntelFeedPanel(): React.JSX.Element {
   const showPredictions = activeTab === 'PREDICTIONS'
 
   return (
-    <aside className="flex min-h-[14rem] w-full shrink-0 flex-col rounded-lg border border-zinc-800 bg-zinc-900/40 xl:h-auto xl:min-h-0 xl:w-[min(100%,22rem)] xl:overflow-hidden">
+    <aside className="flex min-h-[14rem] w-full shrink-0 flex-col rounded-lg border border-zinc-800 bg-zinc-900/40 xl:h-auto xl:min-h-0 xl:w-[min(100%,22rem)] xl:overflow-hidden md:rounded-lg rounded-none md:border border-0 md:h-auto h-full">
       {/* ── Header ── */}
-      <div className="border-b border-zinc-800 px-3 py-2">
+      <div className="border-b border-zinc-800 px-3 py-2 md:px-3 md:py-2">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Intelligence feed
@@ -134,13 +134,13 @@ export function IntelFeedPanel(): React.JSX.Element {
         </div>
 
         {/* Filter tabs */}
-        <div className="mt-1.5 flex gap-1">
+        <div className="mt-1.5 flex gap-1 overflow-x-auto no-scrollbar">
           {TABS.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => { setActiveTab(tab.key); setSelectedId(null) }}
-              className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
+              className={`rounded px-2.5 py-1.5 md:px-2 md:py-0.5 text-xs md:text-[10px] font-medium transition-colors whitespace-nowrap ${
                 activeTab === tab.key
                   ? `${tab.color} bg-zinc-800`
                   : 'text-zinc-600 hover:text-zinc-400'

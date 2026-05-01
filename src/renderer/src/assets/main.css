@@ -109,3 +109,35 @@ body {
   background: #333;
   color: #aaa;
 }
+
+/* ── Mobile utilities ── */
+
+/* Dynamic viewport height for mobile browser address bars */
+.h-dvh {
+  height: 100dvh;
+}
+
+/* Hide scrollbar but keep scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media (max-width: 767px) {
+  /* Larger touch targets for mobile */
+  button, [role="button"] {
+    min-height: 44px;
+  }
+
+  /* MapLibre popup sizing on small screens */
+  .maplibregl-popup {
+    max-width: 90vw !important;
+  }
+  .zone-popup {
+    max-width: 85vw !important;
+    min-width: auto !important;
+  }
+}

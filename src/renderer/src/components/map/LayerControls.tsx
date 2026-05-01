@@ -132,60 +132,91 @@ export function LayerControls({ layers, onToggle }: LayerControlsProps): React.J
   }, [])
 
   return (
-    <div className="flex flex-col gap-2">
-      {LAYER_CONFIG.map(({ key, label, icon, color }) => (
-        <button
-          key={key}
-          onClick={() => onToggle(key)}
-          className={`
-            flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all
-            ${
-              layers[key]
-                ? 'border-zinc-600 bg-zinc-800 text-zinc-100 shadow-sm'
-                : 'border-zinc-800 bg-zinc-900 text-zinc-500 opacity-50'
-            }
-          `}
-          aria-pressed={layers[key]}
-          aria-label={`Toggle ${label} layer`}
-        >
-          <span className={layers[key] ? color : 'text-zinc-600'}>{icon}</span>
-          <span>{label}</span>
-          {counts[key] > 0 && key !== 'corridors' && key !== 'regions' && (
-            <span className="ml-1 rounded bg-zinc-700/60 px-1.5 py-0.5 text-[10px] tabular-nums text-zinc-400">
-              {counts[key].toLocaleString()}
-            </span>
-          )}
-          {!aisFeedAlive && key === 'ais' && layers.ais && counts.ais === 0 && (
-            <span className="ml-1 rounded bg-red-900/60 px-1.5 py-0.5 text-[10px] text-red-300">
-              ⚠️ FEED DOWN
-            </span>
-          )}
-          {!aisFeedAlive && key === 'ais' && layers.ais && counts.ais > 0 && (
-            <span className="ml-1 rounded bg-amber-900/60 px-1.5 py-0.5 text-[10px] text-amber-300">
-              ⚠️ STALE
-            </span>
-          )}
-          <span className="ml-auto">
-            {layers[key] ? (
-              <svg className="h-3.5 w-3.5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            ) : (
-              <svg className="h-3.5 w-3.5 text-zinc-600" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
+    <>
+      {/* Desktop: vertical sidebar */}
+      <div className="hidden md:flex shrink-0 flex-col gap-2 w-44">
+        {LAYER_CONFIG.map(({ key, label, icon, color }) => (
+          <button
+            key={key}
+            onClick={() => onToggle(key)}
+            className={`
+              flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all
+              ${
+                layers[key]
+                  ? 'border-zinc-600 bg-zinc-800 text-zinc-100 shadow-sm'
+                  : 'border-zinc-800 bg-zinc-900 text-zinc-500 opacity-50'
+              }
+            `}
+            aria-pressed={layers[key]}
+            aria-label={`Toggle ${label} layer`}
+          >
+            <span className={layers[key] ? color : 'text-zinc-600'}>{icon}</span>
+            <span>{label}</span>
+            {counts[key] > 0 && key !== 'corridors' && key !== 'regions' && (
+              <span className="ml-1 rounded bg-zinc-700/60 px-1.5 py-0.5 text-[10px] tabular-nums text-zinc-400">
+                {counts[key].toLocaleString()}
+              </span>
             )}
-          </span>
-        </button>
-      ))}
-    </div>
+            {!aisFeedAlive && key === 'ais' && layers.ais && counts.ais === 0 && (
+              <span className="ml-1 rounded bg-red-900/60 px-1.5 py-0.5 text-[10px] text-red-300">
+                ⚠️ FEED DOWN
+              </span>
+            )}
+            {!aisFeedAlive && key === 'ais' && layers.ais && counts.ais > 0 && (
+              <span className="ml-1 rounded bg-amber-900/60 px-1.5 py-0.5 text-[10px] text-amber-300">
+                ⚠️ STALE
+              </span>
+            )}
+            <span className="ml-auto">
+              {layers[key] ? (
+                <svg className="h-3.5 w-3.5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fillRule="evenodd"
+                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              ) : (
+                <svg className="h-3.5 w-3.5 text-zinc-600" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fillRule="evenodd"
+                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              )}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Mobile: horizontal scroll strip */}
+      <div className="flex md:hidden shrink-0 overflow-x-auto gap-1.5 px-2 py-2 no-scrollbar">
+        {LAYER_CONFIG.map(({ key, label, icon, color }) => (
+          <button
+            key={key}
+            onClick={() => onToggle(key)}
+            className={`
+              shrink-0 flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all
+              ${
+                layers[key]
+                  ? 'border-zinc-600 bg-zinc-800 text-zinc-100'
+                  : 'border-zinc-800 bg-zinc-900 text-zinc-500 opacity-50'
+              }
+            `}
+            aria-pressed={layers[key]}
+            aria-label={`Toggle ${label} layer`}
+          >
+            <span className={layers[key] ? color : 'text-zinc-600'}>{icon}</span>
+            <span>{label.split(' ')[0]}</span>
+            {counts[key] > 0 && key !== 'corridors' && key !== 'regions' && (
+              <span className="rounded bg-zinc-700/60 px-1 py-0.5 text-[10px] tabular-nums text-zinc-400">
+                {counts[key].toLocaleString()}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+    </>
   )
 }
