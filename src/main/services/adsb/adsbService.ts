@@ -30,7 +30,7 @@ import { evaluateRules } from '../alerts/ruleEngine'
 
 // ─── Configuration ───────────────────────────────────────────
 
-/** How often we poll OpenSky (ms) — from config */
+/** How often we poll OpenSky (ms) - from config */
 const POLL_INTERVAL_MS = config.polling.adsbMs
 
 /**
@@ -72,11 +72,11 @@ class OpenSkyTokenManager {
    * Force-fetch a new access token from the OpenSky auth server.
    */
   private async refresh(): Promise<string | null> {
-    const clientId = process.env.OPENSKY_USERNAME
-    const clientSecret = process.env.OPENSKY_PASSWORD
+    const clientId = config.openskyUsername
+    const clientSecret = config.openskyPassword
 
     if (!clientId || !clientSecret) {
-      console.warn('[ADSB] No OpenSky credentials configured – falling back to anonymous access')
+      console.warn('[ADSB] No OpenSky credentials in settings — falling back to anonymous access')
       return null
     }
 
@@ -183,7 +183,7 @@ let backoffUntil = 0
 let creditsRemaining: number | null = null
 let consecutiveToken403 = 0
 
-// Window visibility — skip polls when minimized
+// Window visibility - skip polls when minimized
 let windowVisible = true
 
 /**
@@ -298,7 +298,7 @@ async function fetchStates(): Promise<OpenSkyStateVector[]> {
     return [] // Silent skip, no log spam
   }
 
-  // Backoff check — if we've been rate-limited, wait
+  // Backoff check - if we've been rate-limited, wait
   const now = Date.now()
   if (backoffUntil > now) {
     return [] // silently skip during backoff
@@ -342,13 +342,13 @@ async function fetchWithAuth(
 
   // ── 401 Unauthorized: refresh token and retry once ──
   if (response.status === 401 && !isRetry) {
-    console.warn('[ADSB] Got 401 – refreshing OAuth2 token and retrying')
+    console.warn('[ADSB] Got 401 - refreshing OAuth2 token and retrying')
     tokenManager.invalidate()
     return fetchWithAuth(url, true)
   }
 
   if (response.status === 401 && isRetry) {
-    console.error('[ADSB] Still 401 after token refresh – check OPENSKY_USERNAME / OPENSKY_PASSWORD')
+    console.error('[ADSB] Still 401 after token refresh - check OPENSKY_USERNAME / OPENSKY_PASSWORD')
     return null
   }
 
@@ -383,7 +383,7 @@ async function fetchWithAuth(
   const data = (await response.json()) as OpenSkyResponse
 
   if (!data.states || !Array.isArray(data.states)) {
-    console.warn('[ADSB] Unexpected response format – no "states" array')
+    console.warn('[ADSB] Unexpected response format - no "states" array')
     return null
   }
 
@@ -392,7 +392,7 @@ async function fetchWithAuth(
 
 // ─── Parse & store ───────────────────────────────────────────
 
-/** Max HexDB lookups per poll cycle — persistent queue drains across cycles */
+/** Max HexDB lookups per poll cycle - persistent queue drains across cycles */
 const MAX_LOOKUPS_PER_CYCLE = 200
 
 // Module-level queue that persists across poll cycles for uncached hex lookups
@@ -456,7 +456,7 @@ function storeMergedStates(merged: MergedAircraft[]): number {
         military = cached.is_military
         aircraftType = cached.aircraft_type
       } else {
-        // No cache — default to non-military, queue for HexDB lookup
+        // No cache - default to non-military, queue for HexDB lookup
         military = false
         aircraftType = null
         uncachedHexes.add(icao24)

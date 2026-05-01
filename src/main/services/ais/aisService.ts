@@ -28,6 +28,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Vessel, VesselMarker } from '../../../shared/types'
 import { getCachedVesselInfo } from '../identification/vesselLookup'
 import { runTacticalAnalysis } from '../identification/tacticalEngine'
+import { loadSettings } from '../../ipc/settings.handlers'
 import { evaluateRules } from '../alerts/ruleEngine'
 
 // ─── Configuration ───────────────────────────────────────────
@@ -752,12 +753,24 @@ function flushToDatabase(): void {
   }
 }
 
+// ─── API Key ────────────────────────────────────────────
+
+/** Read AISStream API key from app settings */
+function getApiKey(): string {
+  try {
+    const settings = loadSettings()
+    return settings.apiKeys?.aisstreamApiKey || ''
+  } catch {
+    return ''
+  }
+}
+
 // ─── WebSocket connection ────────────────────────────────────
 
 function connectWebSocket(): void {
-  const apiKey = process.env.AISSTREAM_API_KEY
+  const apiKey = getApiKey()
   if (!apiKey) {
-    console.warn('[AIS] No AISSTREAM_API_KEY configured — AIS service disabled')
+    console.warn('[AIS] No AISStream API key configured in settings — AIS service disabled')
     return
   }
 

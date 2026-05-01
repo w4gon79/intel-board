@@ -13,6 +13,7 @@
 
 import { getDatabase } from '../storage/database'
 import { v4 as uuidv4 } from 'uuid'
+import { config } from '../../utils/config'
 import { CHOKE_POINTS } from '../ais/aisService'
 
 // ─── Configuration ───────────────────────────────────────────
@@ -118,9 +119,9 @@ async function pollGfwReport(
   dateRangeStart: Date,
   dateRangeEnd: Date
 ): Promise<GfwGridCell[]> {
-  const token = process.env.GFW_API_TOKEN
+  const token = config.gfwApiToken
   if (!token) {
-    throw new Error('GFW_API_TOKEN not configured')
+    throw new Error('GFW API token not configured in settings')
   }
 
   const datasetId = DATASETS[datasetKey]
@@ -407,9 +408,9 @@ export function startGfwScheduler(): void {
     return
   }
 
-  const token = process.env.GFW_API_TOKEN
+  const token = config.gfwApiToken
   if (!token) {
-    console.warn('[GFW] No GFW_API_TOKEN configured — GFW service disabled')
+    console.warn('[GFW] No GFW API token in settings — service disabled')
     return
   }
 

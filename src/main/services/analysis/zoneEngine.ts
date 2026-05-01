@@ -137,6 +137,16 @@ function isOverHomeTerritory(lat: number, lon: number, originCountry: string | n
   return false
 }
 
+/** Check if coordinates are over ANY friendly home territory (no origin country needed). */
+function isOverFriendlyTerritory(lat: number, lon: number): boolean {
+  for (const box of Object.values(HOME_TERRITORY)) {
+    if (lat >= box.latMin && lat <= box.latMax && lon >= box.lonMin && lon <= box.lonMax) {
+      return true
+    }
+  }
+  return false
+}
+
 function isNearHomePort(lat: number, lon: number): boolean {
   return HOME_PORT_REGIONS.some(port =>
     haversineDistanceNm(lat, lon, port.lat, port.lon) <= port.radiusNm
@@ -383,6 +393,14 @@ export function runZoneEngine(): void {
     // 4. Create or update zones from clusters
     for (const cluster of clusters) {
       if (cluster.heatScore < CREATION_THRESHOLD) continue
+
+      // HARD BLOCK: Never create or update zones over friendly home territory.
+      // This catches ALL signal sources including tactical events and intel items
+      // that bypass the individual signal filters.
+      if (isOverFriendlyTerritory(cluster.centerLat, cluster.centerLon)) {
+        console.log(`[ZoneEngine] BLOCKED zone at ${cluster.centerLat.toFixed(1)},${cluster.centerLon.toFixed(1)} over friendly home territory (heat: ${cluster.heatScore.toFixed(1)}, sources: ${[...cluster.sourceTypes].join(',')})`)
+        continue
+      }
 
       const zoneId = deriveZoneId(cluster.centerLat, cluster.centerLon)
 

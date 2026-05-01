@@ -171,10 +171,34 @@ const CONTEXT_BLURBS: Record<string, string> = {
   transport: 'Strategic military transport aircraft detected near conflict zone.'
 }
 
-/** Rough home territory bounding boxes for bomber projection */
+/** Home territory bounding boxes for friendly nations (NATO + allies) */
+const FRIENDLY_HOME_TERRITORY: Array<{ name: string; latMin: number; latMax: number; lonMin: number; lonMax: number }> = [
+  { name: 'US', latMin: 24, latMax: 50, lonMin: -125, lonMax: -66 },
+  { name: 'Canada', latMin: 42, latMax: 83, lonMin: -141, lonMax: -52 },
+  { name: 'UK', latMin: 49, latMax: 61, lonMin: -8, lonMax: 2 },
+  { name: 'France', latMin: 42, latMax: 51, lonMin: -5, lonMax: 8 },
+  { name: 'Germany', latMin: 47, latMax: 55, lonMin: 5, lonMax: 15 },
+  { name: 'Italy', latMin: 36, latMax: 47, lonMin: 6, lonMax: 19 },
+  { name: 'Spain', latMin: 36, latMax: 44, lonMin: -10, lonMax: 4 },
+  { name: 'Turkey', latMin: 36, latMax: 42, lonMin: 26, lonMax: 45 },
+  { name: 'Australia', latMin: -44, latMax: -10, lonMin: 113, lonMax: 155 },
+  { name: 'Japan', latMin: 30, latMax: 46, lonMin: 128, lonMax: 146 },
+  { name: 'South Korea', latMin: 33, latMax: 39, lonMin: 125, lonMax: 130 },
+  { name: 'Norway', latMin: 57, latMax: 72, lonMin: 4, lonMax: 32 },
+  { name: 'Poland', latMin: 49, latMax: 55, lonMin: 14, lonMax: 24 },
+]
+
+// Keep original for bomber projection (only US/Russia)
 const HOME_TERRITORY: Record<string, { latMin: number; latMax: number; lonMin: number; lonMax: number }> = {
   US: { latMin: 25, latMax: 49, lonMin: -125, lonMax: -67 },
   Russia: { latMin: 41, latMax: 70, lonMin: 27, lonMax: 190 }
+}
+
+/** Check if coordinates are over a friendly nation's home territory */
+function isFriendlyHomeTerritory(lat: number, lon: number): boolean {
+  return FRIENDLY_HOME_TERRITORY.some(box =>
+    lat >= box.latMin && lat <= box.latMax && lon >= box.lonMin && lon <= box.lonMax
+  )
 }
 
 /** Bomber type prefixes to identify */
@@ -413,6 +437,39 @@ function isNearbyActiveEvent(
 
   const row = db.prepare(query).get(...params) as { cnt: number } | undefined
   return (row?.cnt ?? 0) > 0
+}
+
+/** Find an active airlift event that shares any aircraft with the given ICAO24 list. */
+function findAirliftByAssets(assetIds: string[]): { id: string } | null {
+  const db = getDatabase()
+  if (!db || assetIds.length === 0) return null
+
+  // Check active airlift events for overlapping assets
+  const rows = db.prepare(
+    `SELECT id, assets FROM tactical_events
+     WHERE event_type = 'airlift' AND status = 'active'
+       AND datetime(detected_at) >= datetime('now', '-4 hours')`
+  ).all() as Array<{ id: string; assets: string }>
+
+  for (const row of rows) {
+    try {
+      const existingAssets = JSON.parse(row.assets || '[]') as string[]
+      // If any aircraft overlaps, this is the same formation
+      const overlap = existingAssets.some(a => assetIds.includes(a))
+      if (overlap) return { id: row.id }
+    } catch { /* ignore parse errors */ }
+  }
+  return null
+}
+
+/** Update position and description of an existing tactical event (for tracking movement). */
+function updateEventPosition(eventId: string, lat: number, lon: number, description: string, region: string): void {
+  const db = getDatabase()
+  if (!db) return
+
+  db.prepare(
+    `UPDATE tactical_events SET latitude = ?, longitude = ?, description = ?, region = ?, detected_at = datetime('now') WHERE id = ?`
+  ).run(lat, lon, description, region, eventId)
 }
 
 function hydrateTacticalEvent(row: Record<string, unknown>): TacticalEvent {
@@ -687,14 +744,30 @@ function detectAirlifts(): void {
       const region = findNearestZone(centroid.lat, centroid.lon)
       const regionName = region?.name || 'unknown region'
       const eventRegion = `airlift-${direction}-${regionName}`
-
-      // Dedup: check if active airlift event exists within ~2 degrees (~200km) with same bearing direction
-      if (isNearbyActiveEvent('airlift', centroid.lat, centroid.lon, 2, 2, direction)) continue
-
       const description =
         `Airlift operation detected: ${group.length} ${typeSummary.join('/')} aircraft ` +
         `transiting ${direction} in the past 4h. Likely major logistical deployment. ` +
         `Region: ${regionName}.`
+
+      // Asset-based dedup: if an active airlift event already tracks any of these aircraft,
+      // update its position instead of creating a new event. This prevents the same
+      // formation from spawning dozens of markers as it crosses the Atlantic.
+      const existingAirlift = findAirliftByAssets(assetIds)
+      if (existingAirlift) {
+        updateEventPosition(existingAirlift.id, centroid.lat, centroid.lon, description, eventRegion)
+        console.log(`[TacticalEngine] Updated airlift ${existingAirlift.id.substring(0,8)} at ${centroid.lat.toFixed(1)},${centroid.lon.toFixed(1)} (${group.length} aircraft heading ${direction})`)
+        continue
+      }
+
+      // Also skip if there's a nearby event with same direction (secondary dedup)
+      if (isNearbyActiveEvent('airlift', centroid.lat, centroid.lon, 2, 2, direction)) continue
+
+      // Skip airlift detections over friendly home territory.
+      // Routine C-130/C-17 flights over the US are training/logistics, not tactical.
+      if (isFriendlyHomeTerritory(centroid.lat, centroid.lon)) {
+        console.log(`[TacticalEngine] Skipping airlift at ${centroid.lat.toFixed(1)},${centroid.lon.toFixed(1)} over friendly home territory`)
+        continue
+      }
 
       const event: TacticalEvent = {
         id: uuidv4(),
