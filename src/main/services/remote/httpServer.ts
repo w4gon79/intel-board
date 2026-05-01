@@ -71,6 +71,9 @@ import { getScraperStatus, toggleScraper, refreshScraper } from '../scrapers/scr
 // GFW Vessel Presence
 import { getGfwPresence, getGfwPresenceByChokepoint, getGfwStatus, triggerGfwPoll } from './gfwService'
 
+// Conflict Zones
+import { getActiveConflictZones, getZoneDetail, getZoneHistory, runZoneEngine } from '../analysis/zoneEngine'
+
 // Social Media (Phase 5A)
 import { getSocialPosts, getSocialStats, pollReddit, pollBlueSky } from '../sources/socialMediaService'
 
@@ -458,6 +461,70 @@ export class RemoteServer {
     app.post('/api/ais/stopStreaming', (_req, res) => {
       stopAisStreaming()
       res.json({ success: true })
+    })
+
+    // ── Conflict Zones ──
+    app.get('/api/zones', (_req, res) => {
+      try {
+        res.json(getActiveConflictZones())
+      } catch {
+        res.json([])
+      }
+    })
+
+    app.get('/api/zones/geojson', (_req, res) => {
+      try {
+        const zones = getActiveConflictZones()
+        const features = zones.map((z: any) => ({
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [z.center_lon, z.center_lat]
+          },
+          properties: {
+            id: z.id,
+            name: z.name,
+            status: z.status,
+            heatScore: z.heat_score,
+            signalCount: z.signal_count,
+            sensitivity: z.sensitivity,
+            radiusNm: z.radius_nm
+          }
+        }))
+        res.json({ type: 'FeatureCollection', features })
+      } catch {
+        res.json({ type: 'FeatureCollection', features: [] })
+      }
+    })
+
+    app.get('/api/zones/history', (_req, res) => {
+      try {
+        res.json(getZoneHistory())
+      } catch {
+        res.json([])
+      }
+    })
+
+    app.get('/api/zones/:id', (req, res) => {
+      try {
+        const detail = getZoneDetail(req.params.id)
+        if (!detail) {
+          res.status(404).json({ error: 'Zone not found' })
+          return
+        }
+        res.json(detail)
+      } catch {
+        res.status(500).json({ error: 'Failed to fetch zone detail' })
+      }
+    })
+
+    app.post('/api/zones/refresh', (_req, res) => {
+      try {
+        runZoneEngine()
+        res.json({ ok: true })
+      } catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Zone refresh failed' })
+      }
     })
 
     // ── Articles ──

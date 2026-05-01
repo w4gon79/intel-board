@@ -266,6 +266,12 @@ function buildHttpApi(): any {
         jsonFetch(`${API_BASE}/alert-rules/${encodeURIComponent(id)}`, { method: 'DELETE' }),
       toggle: (id: string) => post(`${API_BASE}/alert-rules/${encodeURIComponent(id)}/toggle`, {})
     },
+    zone: {
+      list: () => jsonFetch(`${API_BASE}/zones`),
+      detail: (id: string) => jsonFetch(`${API_BASE}/zones/${encodeURIComponent(id)}`),
+      history: () => jsonFetch(`${API_BASE}/zones/history`),
+      refresh: () => post(`${API_BASE}/zones/refresh`, {})
+    },
     logger: {
       getRecent: (lines?: number) =>
         jsonFetch(`${API_BASE}/logger/recent?lines=${lines || 100}`)
