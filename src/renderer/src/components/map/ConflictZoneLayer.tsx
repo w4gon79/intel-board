@@ -189,9 +189,34 @@ export default function ConflictZoneLayer({ map, visible }: Props) {
       }
     })
 
-    // Click handler for zone details
-    map.on('click', FILL_LAYER_ID, async (e) => {
+    let lastZoneClickTime = 0
+
+    // Click handler for zone details — only fires when clicking the zone fill itself,
+    // not when clicking markers (intel items, flights, vessels, etc.) on top of the zone.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleZoneClick = async (e: any) => {
+      // Debounce: ignore rapid re-clicks within 500ms
+      const now = Date.now()
+      if (now - lastZoneClickTime < 500) return
+      lastZoneClickTime = now
+
       if (!e.features || e.features.length === 0) return
+
+      // Check if any point features from other layers exist at the click point
+      // Only query layers that actually exist on the map to avoid errors
+      const allPointLayers = [
+        'intel-markers', 'adsb-unclustered', 'adsb-military-points',
+        'ship-points', 'ship-cluster-count', 'adsb-clusters', 'adsb-cluster-count',
+        'carrier-markers', 'carrier-patrol-range', 'carrier-label',
+        'gfw-presence', 'gfw-presence-label', 'gfw-sar', 'gfw-sar-label'
+      ]
+      const existingLayers = new Set(map.getStyle()?.layers?.map(l => l.id) ?? [])
+      const availableLayers = allPointLayers.filter(id => existingLayers.has(id))
+      if (availableLayers.length > 0) {
+        const pointFeatures = map.queryRenderedFeatures(e.point, { layers: availableLayers })
+        if (pointFeatures.length > 0) return // Let the point layer handle the click
+      }
+
       const feature = e.features[0]
       const zoneId = feature.properties?.id
       if (!zoneId) return
@@ -202,7 +227,7 @@ export default function ConflictZoneLayer({ map, visible }: Props) {
           const zone = detail.zone as ConflictZone
           const evidence = detail.evidence as Array<{ title: string; summary: string }>
           const evidenceText = evidence && evidence.length > 0
-            ? evidence.map((e, i) => `  ${i + 1}. ${e.title}`).join('\n')
+            ? evidence.map((ev, i) => `  ${i + 1}. ${ev.title}`).join('\n')
             : '  No linked evidence'
           alert(
             `📍 ${zone.name}\n` +
@@ -217,19 +242,21 @@ export default function ConflictZoneLayer({ map, visible }: Props) {
       } catch {
         // Detail fetch failed
       }
-    })
+    }
+    map.on('click', FILL_LAYER_ID, handleZoneClick)
 
     // Change cursor on hover
-    map.on('mouseenter', FILL_LAYER_ID, () => {
-      map.getCanvas().style.cursor = 'pointer'
-    })
-    map.on('mouseleave', FILL_LAYER_ID, () => {
-      map.getCanvas().style.cursor = ''
-    })
+    const handleMouseEnter = () => { map.getCanvas().style.cursor = 'pointer' }
+    const handleMouseLeave = () => { map.getCanvas().style.cursor = '' }
+    map.on('mouseenter', FILL_LAYER_ID, handleMouseEnter)
+    map.on('mouseleave', FILL_LAYER_ID, handleMouseLeave)
 
     addedRef.current = true
 
     return () => {
+      map.off('click', FILL_LAYER_ID, handleZoneClick)
+      map.off('mouseenter', FILL_LAYER_ID, handleMouseEnter)
+      map.off('mouseleave', FILL_LAYER_ID, handleMouseLeave)
       if (map.getLayer(LABEL_LAYER_ID)) map.removeLayer(LABEL_LAYER_ID)
       if (map.getLayer(BORDER_LAYER_ID)) map.removeLayer(BORDER_LAYER_ID)
       if (map.getLayer(FILL_LAYER_ID)) map.removeLayer(FILL_LAYER_ID)
