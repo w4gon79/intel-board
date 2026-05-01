@@ -14,6 +14,7 @@ export interface LayerVisibility {
   gfw: boolean
   corridors: boolean
   regions: boolean
+  zones: boolean
 }
 
 interface LayerCounts {
@@ -24,6 +25,7 @@ interface LayerCounts {
   gfw: number
   corridors: number
   regions: number
+  zones: number
 }
 
 interface LayerControlsProps {
@@ -43,11 +45,12 @@ const LAYER_CONFIG: Array<{
   { key: 'gfw', label: 'GFW Presence', icon: '🛰', color: 'text-purple-400' },
   { key: 'intel', label: 'Intel Items', icon: '📍', color: 'text-amber-400' },
   { key: 'corridors', label: 'Transit Corridors', icon: '📏', color: 'text-orange-400' },
-  { key: 'regions', label: 'Region Areas', icon: '🗺', color: 'text-teal-400' }
+  { key: 'regions', label: 'Region Areas', icon: '🗺', color: 'text-teal-400' },
+  { key: 'zones', label: 'Conflict Zones', icon: '📍', color: 'text-red-400' }
 ]
 
 export function LayerControls({ layers, onToggle }: LayerControlsProps): React.JSX.Element {
-  const [counts, setCounts] = useState<LayerCounts>({ adsb: 0, ais: 0, csg: 0, intel: 0, gfw: 0, corridors: 8, regions: 15 })
+  const [counts, setCounts] = useState<LayerCounts>({ adsb: 0, ais: 0, csg: 0, intel: 0, gfw: 0, corridors: 8, regions: 15, zones: 0 })
   const [aisFeedAlive, setAisFeedAlive] = useState(true)
 
   // Fetch counts for all layers (Electron IPC or HTTP fallback)

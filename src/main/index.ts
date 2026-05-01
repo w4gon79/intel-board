@@ -26,6 +26,7 @@ import { registerGfwHandlers } from './ipc/gfw.handlers'
 import { registerAlertRuleHandlers } from './ipc/alertRule.handlers'
 import { registerSocialMediaHandlers } from './ipc/socialMedia.handlers'
 import { registerEconomicHandlers } from './ipc/economic.handlers'
+import { registerZoneHandlers } from './ipc/zone.handlers'
 import { startSenseMakingScheduler, stopSenseMakingScheduler } from './services/senseMakingEngine'
 import { setupContextMenu } from './contextMenu'
 import { startScrapers, stopScrapers } from './services/scrapers/scraperManager'
@@ -188,6 +189,7 @@ app.whenReady().then(() => {
   registerAlertRuleHandlers()
   registerSocialMediaHandlers()
   registerEconomicHandlers()
+  registerZoneHandlers()
 
   // Pre-seed aircraft registry from OpenSky database (runs once if cache is empty)
   seedAircraftRegistryIfNeeded().catch((err) => {

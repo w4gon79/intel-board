@@ -209,6 +209,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
   const showGfw = layers?.gfw ?? true
   const showCorridors = layers?.corridors ?? false
   const showRegions = layers?.regions ?? false
+  const showZones = layers?.zones ?? true
 
   // Read settings for military-only filter, clustering, etc.
   const [showAllFlights, setShowAllFlights] = useState(true)
@@ -301,7 +302,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
         )}
       </div>
       {mapReady && mapRef.current && (
-        <ConflictZoneLayer map={mapRef.current} visible={true} />
+        <ConflictZoneLayer map={mapRef.current} visible={showZones} />
       )}
       {mapReady && mapRef.current && (
         // Unique key per layer forces remount when clustering changes

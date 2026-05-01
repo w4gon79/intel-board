@@ -309,6 +309,29 @@ CREATE TABLE IF NOT EXISTS csg_intel (
   UNIQUE(group_id, week_of, source)
 );
 
+-- Dynamic conflict zones (replaces static conflict-zones.json)
+CREATE TABLE IF NOT EXISTS conflict_zones (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'monitoring',
+  heat_score REAL NOT NULL DEFAULT 0,
+  center_lat REAL NOT NULL,
+  center_lon REAL NOT NULL,
+  radius_nm REAL NOT NULL,
+  polygon_json TEXT,
+  sensitivity TEXT NOT NULL DEFAULT 'medium',
+  signal_count INTEGER NOT NULL DEFAULT 0,
+  source_types TEXT,
+  evidence_ids TEXT,
+  last_signal_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_conflict_zones_status ON conflict_zones(status);
+CREATE INDEX IF NOT EXISTS idx_conflict_zones_heat ON conflict_zones(heat_score DESC);
+
 -- Custom alert rules (Phase 5A)
 CREATE TABLE IF NOT EXISTS alert_rules (
   id TEXT PRIMARY KEY,
@@ -581,6 +604,45 @@ function migrateLatLonColumns(database: Database.Database): void {
 }
 
 /**
+ * Seed the conflict_zones table with the static zones from conflict-zones.json.
+ * Only runs once (checks if table is empty). Seeds with status 'monitoring'
+ * and heat_score 3.0 so they'll naturally fade if no real signals support them.
+ */
+function seedStaticConflictZones(database: Database.Database): void {
+  try {
+    const count = database.prepare('SELECT COUNT(*) as cnt FROM conflict_zones').get() as { cnt: number }
+    if (count.cnt > 0) return // Already seeded or has dynamic zones
+
+    const staticZones = [
+      { id: 'eastern-med', name: 'Eastern Mediterranean', lat: 34.5, lon: 35.0, radiusNm: 200, sensitivity: 'high' },
+      { id: 'red-sea', name: 'Red Sea / Bab el-Mandeb', lat: 14.5, lon: 42.0, radiusNm: 250, sensitivity: 'high' },
+      { id: 'persian-gulf', name: 'Persian Gulf / Strait of Hormuz', lat: 26.0, lon: 56.0, radiusNm: 200, sensitivity: 'high' },
+      { id: 'black-sea', name: 'Black Sea', lat: 44.0, lon: 34.0, radiusNm: 300, sensitivity: 'high' },
+      { id: 'south-china-sea', name: 'South China Sea', lat: 12.0, lon: 114.0, radiusNm: 400, sensitivity: 'high' },
+      { id: 'taiwan-strait', name: 'Taiwan Strait', lat: 24.0, lon: 119.5, radiusNm: 150, sensitivity: 'high' },
+      { id: 'korean-peninsula', name: 'Korean Peninsula', lat: 38.0, lon: 127.5, radiusNm: 250, sensitivity: 'high' },
+      { id: 'eastern-baltic', name: 'Eastern Baltic', lat: 58.0, lon: 26.0, radiusNm: 200, sensitivity: 'medium' },
+      { id: 'ukraine', name: 'Ukraine / Western Russia', lat: 49.0, lon: 35.0, radiusNm: 350, sensitivity: 'high' },
+      { id: 'syria-iraq', name: 'Syria / Iraq', lat: 35.0, lon: 40.0, radiusNm: 250, sensitivity: 'medium' },
+      { id: 'libya', name: 'Libya / Central Mediterranean', lat: 28.0, lon: 17.0, radiusNm: 200, sensitivity: 'low' },
+      { id: 'arctic', name: 'Arctic / High North', lat: 78.0, lon: 20.0, radiusNm: 500, sensitivity: 'medium' },
+    ] as const
+
+    const insert = database.prepare(
+      `INSERT INTO conflict_zones (id, name, status, heat_score, center_lat, center_lon, radius_nm, sensitivity, signal_count, source_types, evidence_ids)
+       VALUES (?, ?, 'monitoring', 3.0, ?, ?, ?, ?, 0, '[]', '[]')`
+    )
+
+    for (const z of staticZones) {
+      insert.run(z.id, z.name, z.lat, z.lon, z.radiusNm, z.sensitivity)
+    }
+    console.log(`[database] Seeded ${staticZones.length} static conflict zones`)
+  } catch (err) {
+    console.warn('[database] Conflict zone seed skipped:', err)
+  }
+}
+
+/**
  * Initialize the database connection and create schema if needed.
  * Safe to call multiple times — returns existing connection if already open.
  */
@@ -609,6 +671,7 @@ export function initDatabase(): Database.Database {
   migrateLatLonColumns(db)
   migrateAlertRulesTimeWindow(db)
   migrateAlertRulesFiltersTrigger(db)
+  seedStaticConflictZones(db)
 
   console.log('[database] Schema initialized successfully')
 

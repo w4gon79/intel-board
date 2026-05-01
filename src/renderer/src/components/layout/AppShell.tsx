@@ -16,7 +16,8 @@ const DEFAULT_LAYERS: LayerVisibility = {
   csg: true,
   intel: true,
   corridors: false,
-  regions: false
+  regions: false,
+  zones: true
 }
 
 export function AppShell(): React.JSX.Element {

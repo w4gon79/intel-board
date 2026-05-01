@@ -12,6 +12,7 @@ import { getCSGContextString } from './csg/csgService'
 import { withWorldContext } from '../utils/worldContext'
 import { CHOKE_POINTS } from './ais/aisService'
 import { getEconomicContextString } from './economicService'
+import { runZoneEngine, getActiveConflictZones } from './analysis/zoneEngine'
 
 // ── Sense-Making Failure Backoff ───────────────────────────
 
@@ -126,19 +127,38 @@ export async function runSenseMaking(): Promise<void> {
     economicContext = getEconomicContextString()
   } catch { /* economic data may not be available yet */ }
 
-  // 8. Build prompt
-  const prompt = buildAnalysisPrompt(events, csgContext, recentIntel, recentArticles, chokePointContext, socialContext, economicContext)
+  // 8. Get dynamic conflict zone context
+  let zoneContext = ''
+  try {
+    const activeZones = getActiveConflictZones()
+    if (activeZones.length > 0) {
+      zoneContext = activeZones
+        .filter(z => z.status !== 'resolved')
+        .map(z => `  [${z.status.toUpperCase()}] ${z.name} (heat: ${z.heat_score.toFixed(1)}, signals: ${z.signal_count}, sensitivity: ${z.sensitivity})`)
+        .join('\n')
+    }
+  } catch { /* zone engine may not be ready */ }
 
-  // 8. Call LLM
+  // 9. Build prompt
+  const prompt = buildAnalysisPrompt(events, csgContext, recentIntel, recentArticles, chokePointContext, socialContext, economicContext, zoneContext)
+
+  // 10. Call LLM
   try {
     const result = await callLLMForAnalysis(withWorldContext(prompt))
 
-    // 9. Store results
+    // 11. Store results
     for (const analysis of result.analyses) {
       storeAnalysisResult(analysis)
     }
     console.log(`[SenseMaking] Generated ${result.analyses.length} analyses`)
     consecutiveSenseFailures = 0
+
+    // 12. Refresh dynamic conflict zones after analysis
+    try {
+      await runZoneEngine()
+    } catch (zoneErr) {
+      console.error('[SenseMaking] Zone engine refresh failed:', zoneErr instanceof Error ? zoneErr.message : String(zoneErr))
+    }
   } catch (err) {
     console.error('[SenseMaking] Analysis failed:', err instanceof Error ? err.message : String(err))
     consecutiveSenseFailures++
@@ -347,7 +367,8 @@ function buildAnalysisPrompt(
   articles: Array<Record<string, unknown>>,
   chokePointContext: string,
   socialContext: string,
-  economicContext: string
+  economicContext: string,
+  zoneContext: string
 ): string {
   const eventStr = events.length > 0
     ? events.map(e => `  [${e.event_type}] ${e.description} (${e.region}, severity: ${e.severity})`).join('\n')
@@ -385,6 +406,9 @@ ${socialStr}
 
 ECONOMIC INDICATORS (ANOMALY-HIGHLIGHTED):
 ${economicContext || 'No economic data available.'}
+
+DYNAMIC CONFLICT ZONES:
+${zoneContext || '  No active conflict zones'}
 
 TASK:
 Identify 0-3 significant geopolitical developments based on the data above. For each:

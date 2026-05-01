@@ -16,7 +16,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getDatabase } from '../storage/database'
 import { insertIntelItem } from '../storage/dbService'
-import conflictZones from './data/conflict-zones.json'
+import { getActiveConflictZones, type ConflictZoneRow } from '../analysis/zoneEngine'
 import { REGION_AREAS } from '../../../shared/regions'
 import type { IntelTier } from '../../../shared/types'
 
@@ -264,9 +264,23 @@ const DEBOUNCE_MS = 60_000 // 60 seconds
 // cycles (e.g. vessel names in different order).
 const syncedEventIds = new Set<string>()
 
-// ─── Loaded conflict zones ──────────────────────────────────
+// ─── Dynamic conflict zones (loaded from DB) ────────────────
 
-const zones: ConflictZone[] = conflictZones as ConflictZone[]
+function loadZones(): ConflictZone[] {
+  try {
+    const dbZones = getActiveConflictZones()
+    return dbZones.map(z => ({
+      id: z.id,
+      name: z.name,
+      lat: z.center_lat,
+      lon: z.center_lon,
+      radiusNm: z.radius_nm,
+      sensitivity: z.sensitivity
+    }))
+  } catch {
+    return []
+  }
+}
 
 // ─── DB helpers ─────────────────────────────────────────────
 
@@ -710,6 +724,7 @@ function detectHvaProximity(): void {
   try {
     const db = getDatabase()
     if (!db) return
+    const zones = loadZones()
 
     // Get active military flights with registry data
     const flights = db
@@ -1085,6 +1100,7 @@ function detectBomberProjection(): void {
   try {
     const db = getDatabase()
     if (!db) return
+    const zones = loadZones()
 
     const flights = db
       .prepare(
@@ -1164,6 +1180,7 @@ function detectBomberProjection(): void {
 // ─── Helpers ────────────────────────────────────────────────
 
 function findNearestZone(lat: number, lon: number): ConflictZone | null {
+  const zones = loadZones()
   let closest: ConflictZone | null = null
   let closestDist = Infinity
 
@@ -1205,6 +1222,7 @@ function findNearestZone(lat: number, lon: number): ConflictZone | null {
  * Returns null if the point is outside all conflict zones.
  */
 function findZoneContainingPoint(lat: number, lon: number): ConflictZone | null {
+  const zones = loadZones()
   for (const zone of zones) {
     const distKm = haversineDistanceKm(lat, lon, zone.lat, zone.lon)
     const radiusKm = nmToKm(zone.radiusNm)

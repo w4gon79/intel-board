@@ -292,6 +292,17 @@ const api = {
     /** Stop economic polling */
     stop: () => ipcRenderer.invoke('economic:stop')
   },
+  // ── Dynamic Conflict Zones ──
+  zone: {
+    /** List all non-resolved conflict zones */
+    list: () => ipcRenderer.invoke('zone:list'),
+    /** Get zone detail + evidence items */
+    detail: (id: string) => ipcRenderer.invoke('zone:detail', id),
+    /** Get resolved zones from last 30 days */
+    history: () => ipcRenderer.invoke('zone:history'),
+    /** Manually trigger zone engine refresh */
+    refresh: () => ipcRenderer.invoke('zone:refresh')
+  },
 
   // ── Alert Rules (Phase 5A) ──
   alertRules: {
