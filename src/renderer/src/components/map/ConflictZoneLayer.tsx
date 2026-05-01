@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { Popup } from 'maplibre-gl'
 import type { Map } from 'maplibre-gl'
 
 interface Props {
@@ -227,7 +228,7 @@ export default function ConflictZoneLayer({ map, visible }: Props) {
           const zone = detail.zone as ConflictZone
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const evidence = detail.evidence as Array<Record<string, any>>
-          const evidenceText = evidence && evidence.length > 0
+          const evidenceItems = evidence && evidence.length > 0
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ? evidence.map((ev: any, i: number) => {
                 const sourceLabel = ev.source_table === 'tactical_events' ? 'TAC'
@@ -237,18 +238,32 @@ export default function ConflictZoneLayer({ map, visible }: Props) {
                   : ev.source_table === 'flights' ? 'ADSB'
                   : 'OTHER'
                 const title = ev.display_title || ev.title || ev.description || 'Unknown evidence item'
-                return `  ${i + 1}. [${sourceLabel}] ${String(title).substring(0, 120)}`
-              }).join('\n')
-            : '  No linked evidence'
-          alert(
-            `📍 ${zone.name}\n` +
-            `Status: ${zone.status.toUpperCase()}\n` +
-            `Heat Score: ${zone.heat_score.toFixed(1)}\n` +
-            `Signals: ${zone.signal_count}\n` +
-            `Sensitivity: ${zone.sensitivity}\n` +
-            `Radius: ${zone.radius_nm.toFixed(0)} nm\n\n` +
-            `Evidence:\n${evidenceText}`
-          )
+                return `<div class="zone-evidence-item">${i + 1}. <span class="zone-evidence-tag">[${sourceLabel}]</span> ${String(title).substring(0, 120)}</div>`
+              }).join('')
+            : '<div class="zone-evidence-item">No linked evidence</div>'
+
+          const popupHtml = `
+            <div class="zone-popup">
+              <div class="zone-popup-title">📍 ${zone.name}</div>
+              <div class="zone-popup-row"><span class="zone-popup-label">Status:</span> <span class="zone-status-${zone.status}">${zone.status.toUpperCase()}</span></div>
+              <div class="zone-popup-row"><span class="zone-popup-label">Heat Score:</span> ${zone.heat_score.toFixed(1)}</div>
+              <div class="zone-popup-row"><span class="zone-popup-label">Signals:</span> ${zone.signal_count}</div>
+              <div class="zone-popup-row"><span class="zone-popup-label">Sensitivity:</span> ${zone.sensitivity}</div>
+              <div class="zone-popup-row"><span class="zone-popup-label">Radius:</span> ${zone.radius_nm.toFixed(0)} nm</div>
+              <div class="zone-popup-section">
+                <div class="zone-popup-section-title">Evidence (${evidence ? evidence.length : 0})</div>
+                <div class="zone-evidence-list">${evidenceItems}</div>
+              </div>
+            </div>`
+
+          new Popup({
+            offset: 12,
+            closeButton: true,
+            maxWidth: '360px'
+          })
+            .setLngLat(e.lngLat)
+            .setHTML(popupHtml)
+            .addTo(map)
         }
       } catch {
         // Detail fetch failed

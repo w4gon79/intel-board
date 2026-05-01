@@ -18,3 +18,94 @@ body {
     overflow: hidden;
   }
 }
+
+/* Conflict Zone Popup */
+.maplibregl-popup-content {
+  padding: 0 !important;
+}
+
+.zone-popup {
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  color: #e0e0e0;
+  background: #1a1a2e;
+  border-radius: 8px;
+  padding: 14px;
+  min-width: 280px;
+  max-width: 360px;
+}
+
+.zone-popup-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.zone-popup-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  gap: 12px;
+}
+
+.zone-popup-label {
+  color: #888;
+  flex-shrink: 0;
+}
+
+.zone-status-active { color: #f59e0b; }
+.zone-status-escalating { color: #ef4444; }
+.zone-status-monitoring { color: #3b82f6; }
+.zone-status-fading { color: #6b7280; }
+.zone-status-resolved { color: #22c55e; }
+
+.zone-popup-section {
+  margin-top: 10px;
+  border-top: 1px solid #333;
+  padding-top: 8px;
+}
+
+.zone-popup-section-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #aaa;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.zone-evidence-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.zone-evidence-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.zone-evidence-list::-webkit-scrollbar-track {
+  background: #111;
+  border-radius: 3px;
+}
+
+.zone-evidence-list::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 3px;
+}
+
+.zone-evidence-item {
+  padding: 3px 0;
+  font-size: 12px;
+  line-height: 1.4;
+  border-bottom: 1px solid #222;
+}
+
+.zone-evidence-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #333;
+  color: #aaa;
+}
