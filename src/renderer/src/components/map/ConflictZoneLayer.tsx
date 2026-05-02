@@ -207,7 +207,9 @@ export default function ConflictZoneLayer({ map, visible }: Props) {
       // Only query layers that actually exist on the map to avoid errors
       const allPointLayers = [
         'intel-markers', 'adsb-unclustered', 'adsb-military-points',
-        'ship-points', 'ship-cluster-count', 'adsb-clusters', 'adsb-cluster-count',
+        'vessels-cargo', 'vessels-tanker', 'vessels-passenger', 'vessels-other',
+        'vessels-military', 'vessels-clusters', 'vessels-cluster-count',
+        'adsb-clusters', 'adsb-cluster-count',
         'carrier-markers', 'carrier-patrol-range', 'carrier-label',
         'gfw-presence', 'gfw-presence-label', 'gfw-sar', 'gfw-sar-label'
       ]
