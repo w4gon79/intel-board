@@ -34,7 +34,7 @@ import { evaluateRules } from '../alerts/ruleEngine'
 // ─── Configuration ───────────────────────────────────────────
 
 const WS_URL = 'wss://stream.aisstream.io/v0/stream'
-const DB_FLUSH_INTERVAL_MS = 10_000
+const DB_FLUSH_INTERVAL_MS = 30_000
 const MAX_RECONNECT_DELAY_MS = 60_000
 const BASE_RECONNECT_DELAY_MS = 2_000
 const STALE_VESSEL_HOURS = 4  // Remove vessels with no update in 4 hours
@@ -332,6 +332,7 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let flushTimer: ReturnType<typeof setInterval> | null = null
 let purgeTimer: ReturnType<typeof setInterval> | null = null
 const vesselCache = new Map<string, Vessel>()
+const dirtyMmsis = new Set<string>()
 const vesselTypeCodes = new Map<string, number>()
 
 // ─── GeoJSON generation ─────────────────────────────────────
@@ -360,7 +361,16 @@ export interface VesselFeatureCollection {
   features: VesselFeature[]
 }
 
+let cachedGeoJSON: VesselFeatureCollection | null = null
+let cachedMarkers: VesselMarker[] | null = null
+
+function invalidateCaches(): void {
+  cachedGeoJSON = null
+  cachedMarkers = null
+}
+
 export function getVesselGeoJSON(): VesselFeatureCollection {
+  if (cachedGeoJSON) return cachedGeoJSON
   const features: VesselFeature[] = []
 
   for (const [mmsi, v] of vesselCache) {
@@ -399,7 +409,8 @@ export function getVesselGeoJSON(): VesselFeatureCollection {
     })
   }
 
-  return { type: 'FeatureCollection', features }
+  cachedGeoJSON = { type: 'FeatureCollection', features }
+  return cachedGeoJSON
 }
 
 // ─── AISStream.io message types ─────────────────────────────
@@ -488,6 +499,7 @@ function processPositionReport(pos: AisMessagePosition, metaDataMmsi?: number): 
   }
 
   vesselCache.set(mmsi, vessel)
+  dirtyMmsis.add(mmsi)
 }
 
 function processShipStaticData(staticData: AisMessageStaticData, metaDataMmsi?: number): void {
@@ -521,13 +533,16 @@ function processShipStaticData(staticData: AisMessageStaticData, metaDataMmsi?: 
     }
     if (staticData.Name?.trim()) {
       existing.ship_name = staticData.Name.trim()
+      dirtyMmsis.add(mmsi)
     }
     if (staticData.Destination?.trim()) {
       existing.destination = staticData.Destination.trim()
+      dirtyMmsis.add(mmsi)
     }
     if (effectiveTypeCode > 0) {
       existing.ship_type = categorizeShipType(effectiveTypeCode)
       vesselTypeCodes.set(mmsi, effectiveTypeCode)
+      dirtyMmsis.add(mmsi)
     }
   }
 
@@ -699,58 +714,89 @@ function flushToDatabase(): void {
   const db = getDatabase()
   if (!db || vesselCache.size === 0) return
 
+  // Only flush vessels that actually changed since last flush
+  const dirtyValues: Vessel[] = []
+  for (const mmsi of dirtyMmsis) {
+    const v = vesselCache.get(mmsi)
+    if (v) dirtyValues.push(v)
+  }
+  dirtyMmsis.clear()
+
+  if (dirtyValues.length === 0) {
+    // No changes — still run tactical analysis periodically
+    runTacticalAnalysis().catch(() => {})
+    return
+  }
+
   const insert = db.prepare(`
     INSERT OR REPLACE INTO vessels (id, mmsi, imo, ship_name, ship_type, latitude, longitude, speed, heading, destination, timestamp)
     VALUES (@id, @mmsi, @imo, @ship_name, @ship_type, @latitude, @longitude, @speed, @heading, @destination, @timestamp)
   `)
 
-  const transaction = db.transaction(() => {
-    for (const v of vesselCache.values()) {
-      insert.run({
-        id: v.id,
-        mmsi: v.mmsi,
-        imo: v.imo,
-        ship_name: v.ship_name,
-        ship_type: v.ship_type,
-        latitude: v.latitude,
-        longitude: v.longitude,
-        speed: v.speed,
-        heading: v.heading,
-        destination: v.destination,
-        timestamp: v.timestamp
-      })
+  // Chunk writes into batches of 100 to keep transactions small
+  const CHUNK_SIZE = 100
+  let offset = 0
+
+  const writeChunk = (): void => {
+    const chunk = dirtyValues.slice(offset, offset + CHUNK_SIZE)
+    if (chunk.length === 0) {
+      console.log(`[AIS] Flushed ${dirtyValues.length} vessels (${vesselCache.size} total in cache)`)
+
+      // Rebuild cached GeoJSON and markers after flush so renderer polls are instant
+      invalidateCaches()
+      // Warm the cache synchronously (renderer polls every 5s, this runs every 10s)
+
+      // Run tactical analysis after flush (debounced internally)
+      runTacticalAnalysis().catch((err) =>
+        console.error('[AIS] Tactical analysis error:', err instanceof Error ? err.message : String(err))
+      )
+
+      // Evaluate custom alert rules (Phase 5A)
+      try {
+        const shipEntities = dirtyValues.map(v => ({
+          lat: v.latitude ?? undefined,
+          lon: v.longitude ?? undefined,
+          speed: v.speed ?? undefined,
+          heading: v.heading ?? undefined,
+          name: v.ship_name ?? undefined,
+          type: v.ship_type ?? undefined,
+          destination: v.destination ?? undefined,
+          mmsi: v.mmsi ?? undefined
+        }))
+        evaluateRules('ship', shipEntities)
+      } catch { /* ignore */ }
+      return
     }
-  })
 
-  try {
-    transaction()
-    console.log(`[AIS] Flushed ${vesselCache.size} vessels to database`)
+    const transaction = db.transaction(() => {
+      for (const v of chunk) {
+        insert.run({
+          id: v.id,
+          mmsi: v.mmsi,
+          imo: v.imo,
+          ship_name: v.ship_name,
+          ship_type: v.ship_type,
+          latitude: v.latitude,
+          longitude: v.longitude,
+          speed: v.speed,
+          heading: v.heading,
+          destination: v.destination,
+          timestamp: v.timestamp
+        })
+      }
+    })
 
-    // Run tactical analysis after flush (debounced internally)
-    runTacticalAnalysis().catch((err) =>
-      console.error('[AIS] Tactical analysis error:', err instanceof Error ? err.message : String(err))
-    )
-
-    // Evaluate custom alert rules against current vessel cache (Phase 5A)
     try {
-      const vessels = Array.from(vesselCache.values()).map((v) => ({
-        id: v.id,
-        name: v.ship_name ?? undefined,
-        type: v.ship_type ?? undefined,
-        lat: v.latitude ?? undefined,
-        lon: v.longitude ?? undefined,
-        speed: v.speed ?? undefined,
-        heading: v.heading ?? undefined,
-        destination: v.destination ?? undefined,
-        mmsi: v.mmsi ?? undefined
-      }))
-      evaluateRules('ship', vessels)
-    } catch (err) {
-      console.error('[AIS] Rule evaluation error:', err instanceof Error ? err.message : String(err))
+      transaction()
+      offset += CHUNK_SIZE
+      setImmediate(writeChunk)
+    } catch {
+      offset += CHUNK_SIZE
+      setImmediate(writeChunk)
     }
-  } catch (err) {
-    console.error('[AIS] Database flush error:', err instanceof Error ? err.message : String(err))
   }
+
+  writeChunk()
 }
 
 // ─── API Key ────────────────────────────────────────────
@@ -788,9 +834,16 @@ function connectWebSocket(): void {
       isConnecting = false
       reconnectAttempts = 0
 
+      // Subscribe to areas of interest: North Atlantic, Mediterranean, Middle East, Indo-Pacific
+      // Narrowing from global coverage dramatically reduces message rate
       const subscribeMessage = {
         Apikey: apiKey,
-        BoundingBoxes: [[[-90, -180], [90, 180]]],
+        BoundingBoxes: [
+          [[30, -80], [65, 10]],    // North Atlantic + Europe
+          [[25, 10], [45, 50]],    // Mediterranean + Black Sea
+          [[10, 40], [35, 80]],    // Middle East + Arabian Sea
+          [[0, 100], [45, 160]]    // South China Sea + Indo-Pacific
+        ],
         FiltersShipMMSI: [],
         FilterMessageTypes: ['PositionReport', 'ShipStaticData']
       }
@@ -800,38 +853,59 @@ function connectWebSocket(): void {
     })
 
     let messageCount = 0
+    // Buffer messages and process in batches to yield the event loop
+    let messageBuffer: unknown[] = []
+    const BATCH_SIZE = 200
+    let batchScheduled = false
+
+    const processBatch = (): void => {
+      const batch = messageBuffer.splice(0, BATCH_SIZE)
+      for (const raw of batch) {
+        try {
+          const parsed = JSON.parse(String(raw)) as AisStreamMessage
+          messageCount++
+          lastMessageTime = Date.now()
+
+          if (messageCount === 1 || messageCount === 2 || messageCount === 3) {
+            console.log(`[AIS] Raw message #${messageCount}:`, JSON.stringify(parsed).slice(0, 600))
+          }
+
+          const msgData = parsed.Message
+          const metaMmsi = parsed.MetaData?.MMSI
+
+          switch (parsed.MessageType) {
+            case 'PositionReport':
+              if (msgData?.PositionReport) {
+                processPositionReport(msgData.PositionReport, metaMmsi)
+              }
+              break
+            case 'ShipStaticData':
+              if (msgData?.ShipStaticData) {
+                processShipStaticData(msgData.ShipStaticData, metaMmsi)
+              }
+              break
+          }
+        } catch {
+          // Skip non-JSON messages
+        }
+      }
+
+      if (messageBuffer.length > 0) {
+        setImmediate(processBatch)
+      } else {
+        batchScheduled = false
+      }
+
+      if (messageCount % 1000 === 0) {
+        console.log(`[AIS] Processed ${messageCount} messages, ${vesselCache.size} vessels tracked`)
+      }
+    }
 
     ws.on('message', (raw: WebSocket.RawData) => {
-      try {
-        const parsed = JSON.parse(String(raw)) as AisStreamMessage
-        messageCount++
-
-        if (messageCount <= 3) {
-          console.log(`[AIS] Raw message #${messageCount}:`, JSON.stringify(parsed).slice(0, 600))
-        }
-
-        const msgData = parsed.Message
-        const metaMmsi = parsed.MetaData?.MMSI
-
-        switch (parsed.MessageType) {
-          case 'PositionReport':
-            if (msgData?.PositionReport) {
-              lastMessageTime = Date.now()
-              processPositionReport(msgData.PositionReport, metaMmsi)
-            }
-            break
-          case 'ShipStaticData':
-            if (msgData?.ShipStaticData) {
-              processShipStaticData(msgData.ShipStaticData, metaMmsi)
-            }
-            break
-        }
-
-        if (messageCount % 1000 === 0) {
-          console.log(`[AIS] Processed ${messageCount} messages, ${vesselCache.size} vessels tracked`)
-        }
-      } catch {
-        // Skip non-JSON messages
+      messageBuffer.push(raw)
+      if (!batchScheduled) {
+        batchScheduled = true
+        setImmediate(processBatch)
       }
     })
 
@@ -868,6 +942,7 @@ function connectWebSocket(): void {
 // ─── Public API ──────────────────────────────────────────────
 
 export function getLiveVesselMarkers(): VesselMarker[] {
+  if (cachedMarkers) return cachedMarkers
   const markers: VesselMarker[] = []
   for (const v of vesselCache.values()) {
     if (v.latitude == null || v.longitude == null) continue
@@ -885,6 +960,7 @@ export function getLiveVesselMarkers(): VesselMarker[] {
       timestamp: v.timestamp
     })
   }
+  cachedMarkers = markers
   return markers
 }
 

@@ -63,7 +63,7 @@ export function StatusBar({ layers }: StatusBarProps): React.JSX.Element {
   }, [])
 
   return (
-    <div className="flex shrink-0 items-center gap-3 overflow-x-auto border-b border-zinc-800 bg-zinc-950 px-3 py-1.5 text-[11px] text-zinc-400 md:gap-6 md:px-4 md:py-2 md:text-xs">
+    <div className="flex shrink-0 items-center gap-3 overflow-x-auto border-b border-zinc-800 bg-zinc-950 px-3 py-1.5 text-[11px] text-zinc-400 lg:gap-6 lg:px-4 lg:py-2 lg:text-xs">
       <span>
         <span className="font-medium text-red-400/90">ALERTS</span>
         <span className="mx-1.5 text-zinc-600">·</span>

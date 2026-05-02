@@ -134,7 +134,7 @@ export function LayerControls({ layers, onToggle }: LayerControlsProps): React.J
   return (
     <>
       {/* Desktop: vertical sidebar */}
-      <div className="hidden md:flex shrink-0 flex-col gap-2 w-44">
+      <div className="hidden lg:flex shrink-0 flex-col gap-2 w-44">
         {LAYER_CONFIG.map(({ key, label, icon, color }) => (
           <button
             key={key}
@@ -191,7 +191,7 @@ export function LayerControls({ layers, onToggle }: LayerControlsProps): React.J
       </div>
 
       {/* Mobile: horizontal scroll strip */}
-      <div className="flex md:hidden shrink-0 overflow-x-auto gap-1.5 px-2 py-2 no-scrollbar">
+      <div className="flex lg:hidden shrink-0 overflow-x-auto gap-1.5 px-2 py-2 no-scrollbar">
         {LAYER_CONFIG.map(({ key, label, icon, color }) => (
           <button
             key={key}

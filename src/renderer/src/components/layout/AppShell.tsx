@@ -54,12 +54,12 @@ export function AppShell(): React.JSX.Element {
 
   return (
     <IntelHighlightProvider>
-    <div className="flex min-h-0 flex-col bg-zinc-950 text-zinc-100 h-dvh">
+    <div className="flex min-h-0 flex-col bg-zinc-950 text-zinc-100 min-h-screen h-[100dvh]">
       <HeaderBar onOpenSettings={openSettings} onOpenAI={openAI} />
       <StatusBar layers={layers} />
 
       {/* Mobile Tab Bar */}
-      <div className="flex shrink-0 border-b border-zinc-800 bg-zinc-900 md:hidden">
+      <div className="flex shrink-0 border-b border-zinc-800 bg-zinc-900 lg:hidden">
         {(['map', 'intel', 'ai'] as const).map(tab => (
           <button
             key={tab}
@@ -76,7 +76,7 @@ export function AppShell(): React.JSX.Element {
       </div>
 
       {/* Desktop layout — hidden on mobile */}
-      <div className="hidden md:flex flex-col gap-2 p-2 xl:flex-row xl:flex-1 xl:min-h-0 xl:overflow-y-hidden">
+      <div className="hidden lg:flex flex-col gap-2 p-2 xl:flex-row xl:flex-1 xl:min-h-0 xl:overflow-y-hidden">
         <section
           className="flex min-h-0 min-w-0 flex-col gap-2 lg:flex-row h-[50vh] xl:flex-1 xl:h-auto"
           aria-label="Situation map and layers"
@@ -90,25 +90,19 @@ export function AppShell(): React.JSX.Element {
       </div>
 
       {/* Mobile layout — visible only on mobile */}
-      <div className="flex flex-1 min-h-0 md:hidden">
-        {mobileTab === 'map' && (
-          <div className="flex flex-1 flex-col min-h-0">
-            <LayerControls layers={layers} onToggle={handleToggleLayer} />
-            <div className="flex-1 min-h-0">
-              <SituationMap layers={layers} />
-            </div>
+      <div className="relative flex-1 min-h-0 lg:hidden">
+        <div className={`absolute inset-0 flex flex-col min-h-0 ${mobileTab === 'map' ? '' : 'hidden'}`}>
+          <LayerControls layers={layers} onToggle={handleToggleLayer} />
+          <div className="flex-1 min-h-0">
+            <SituationMap layers={layers} />
           </div>
-        )}
-        {mobileTab === 'intel' && (
-          <div className="flex-1 overflow-y-auto">
-            <IntelFeedPanel />
-          </div>
-        )}
-        {mobileTab === 'ai' && (
-          <div className="flex-1 flex flex-col min-h-0">
-            <AiAssistantStrip expanded />
-          </div>
-        )}
+        </div>
+        <div className={`absolute inset-0 overflow-y-auto ${mobileTab === 'intel' ? '' : 'hidden'}`}>
+          <IntelFeedPanel />
+        </div>
+        <div className={`absolute inset-0 ${mobileTab === 'ai' ? '' : 'hidden'}`}>
+          <AiAssistantStrip expanded />
+        </div>
       </div>
 
       {/* Desktop AiAssistantStrip — hidden on mobile */}

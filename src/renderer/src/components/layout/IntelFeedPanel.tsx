@@ -121,9 +121,9 @@ export function IntelFeedPanel(): React.JSX.Element {
   const showPredictions = activeTab === 'PREDICTIONS'
 
   return (
-    <aside className="flex min-h-[14rem] w-full shrink-0 flex-col rounded-lg border border-zinc-800 bg-zinc-900/40 xl:h-auto xl:min-h-0 xl:w-[min(100%,22rem)] xl:overflow-hidden md:rounded-lg rounded-none md:border border-0 md:h-auto h-full">
+    <aside className="flex min-h-[14rem] w-full shrink-0 flex-col rounded-lg border border-zinc-800 bg-zinc-900/40 xl:h-auto xl:min-h-0 xl:w-[min(100%,22rem)] xl:overflow-hidden lg:rounded-lg rounded-none lg:border border-0 lg:h-auto">
       {/* ── Header ── */}
-      <div className="border-b border-zinc-800 px-3 py-2 md:px-3 md:py-2">
+      <div className="border-b border-zinc-800 px-3 py-2 lg:px-3 lg:py-2">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
             Intelligence feed
