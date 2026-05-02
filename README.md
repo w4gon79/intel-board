@@ -74,6 +74,8 @@ npm run dev
 
 The app opens to the situation map with the intelligence feed panel.
 
+> **Windows users:** You need Python 3.8+ and Visual Studio Build Tools (see Prerequisites above) before `npm install` will succeed. The `better-sqlite3` native module requires a C++ compiler.
+
 On first launch, open **Settings** (gear icon) to configure your API keys. The app works with partial configuration but more sources = better analysis.
 
 ### Remote Access (Phone/Browser)
@@ -131,7 +133,31 @@ Uses free CARTO/OpenStreetMap dark tiles. No API key or configuration needed.
 | `npm start` | Preview production build |
 | `npm run typecheck` | TypeScript check (`tsc --noEmit`) |
 
-Platform installers: `npm run build:win`, `build:mac`, `build:linux`
+### Building a Desktop App
+
+To create a standalone installer (Start Menu shortcut, desktop icon, the works):
+
+```bash
+npm run build:win      # Windows (NSIS installer)
+npm run build:mac      # macOS (.dmg)
+npm run build:linux    # Linux (AppImage + .deb)
+```
+
+The installer appears in `dist/`. Double click to install like any desktop app.
+
+### Keeping Updated
+
+```bash
+git pull origin main
+npm install            # in case dependencies changed
+npm run dev            # or npm run build:win for a fresh installer
+```
+
+If you hit native module errors after updating, try:
+
+```bash
+npm run postinstall    # rebuilds better-sqlite3 etc.
+```
 
 ## Project Structure
 
