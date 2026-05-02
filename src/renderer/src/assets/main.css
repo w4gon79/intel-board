@@ -126,7 +126,7 @@ body {
   scrollbar-width: none;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   /* Larger touch targets for mobile */
   button, [role="button"] {
     min-height: 44px;

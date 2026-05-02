@@ -100,13 +100,13 @@ export function AppShell(): React.JSX.Element {
         <div className={`absolute inset-0 overflow-y-auto ${mobileTab === 'intel' ? '' : 'hidden'}`}>
           <IntelFeedPanel />
         </div>
-        <div className={`absolute inset-0 ${mobileTab === 'ai' ? '' : 'hidden'}`}>
+        <div className={`absolute inset-0 flex flex-col ${mobileTab === 'ai' ? '' : 'hidden'}`}>
           <AiAssistantStrip expanded />
         </div>
       </div>
 
       {/* Desktop AiAssistantStrip — hidden on mobile */}
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
         <AiAssistantStrip />
       </div>
 
