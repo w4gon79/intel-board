@@ -231,4 +231,4 @@ All data lives in `data/intel-board.db`.
 
 ## License
 
-Private. Contact the author for licensing inquiries.
+This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
