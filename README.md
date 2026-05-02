@@ -211,6 +211,24 @@ All data lives in `data/intel-board.db`.
 | Scraping | Custom HTTP + AI-powered extraction |
 | Data Sources | GDELT, RSS, Google News, ADS-B, AIS |
 
+## Screenshots
+
+### Situation Map
+
+![Intel Board Map](docs/images/Intel_Board.png)
+
+### AIS Vessel Tracking
+
+![AIS Tracking](docs/images/AIS.png)
+
+### Transit Corridors & Choke Points
+
+![Choke Points](docs/images/Choke_Points.png)
+
+### AI Configuration
+
+![AI Config](docs/images/AI_Config.png)
+
 ## License
 
 Private. Contact the author for licensing inquiries.
