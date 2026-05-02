@@ -102,6 +102,7 @@ const VESSEL_TYPE_PATTERNS: Array<{ pattern: RegExp; type: string }> = [
   { pattern: /\bCV\s*[-]?\s*\d+/i, type: 'CV' },
   { pattern: /\bLHD\s*[-]?\s*\d+/i, type: 'LHD' },
   { pattern: /\bLHA\s*[-]?\s*\d+/i, type: 'LHA' },
+  { pattern: /\bLCC\s*[-]?\s*\d+/i, type: 'LCC' },
   { pattern: /\bLSD\s*[-]?\s*\d+/i, type: 'LSD' },
   { pattern: /\bLPD\s*[-]?\s*\d+/i, type: 'LPD' },
   { pattern: /\bCG\s*[-]?\s*\d+/i, type: 'CG' },
@@ -331,6 +332,7 @@ function getVesselType(hullNumber: string | null): string | null {
   const upper = hullNumber.toUpperCase()
   if (upper.startsWith('CVN') || upper.startsWith('CV')) return 'CVN'
   if (upper.startsWith('LHD') || upper.startsWith('LHA')) return 'LHD'
+  if (upper.startsWith('LCC')) return 'LCC'
   if (upper.startsWith('LSD')) return 'LSD'
   if (upper.startsWith('LPD')) return 'LPD'
   if (upper.startsWith('CG')) return 'CG'
@@ -451,8 +453,8 @@ function parseGroupSection(header: string, text: string): ParsedGroup | null {
       hull_number: hullNumber
     })
 
-    // First vessel with CVN/LHD/LHA is the flagship
-    if (!flagship && (vesselType === 'CVN' || vesselType === 'CV' || vesselType === 'LHD' || vesselType === 'LHA')) {
+    // First vessel with CVN/LHD/LHA/LCC is the flagship
+    if (!flagship && (vesselType === 'CVN' || vesselType === 'CV' || vesselType === 'LHD' || vesselType === 'LHA' || vesselType === 'LCC')) {
       flagship = hullNumber ? `${vesselName} ${hullNumber}` : vesselName
     }
   }
@@ -502,7 +504,13 @@ function parseGroupSection(header: string, text: string): ParsedGroup | null {
       }
     }
     if (!resolvedDesignation) {
-      resolvedDesignation = `${resolvedGroupType}-UNKNOWN`
+      // If we have a hull number, use it directly instead of UNKNOWN
+      if (flagshipHull) {
+        resolvedDesignation = `${resolvedGroupType}-${flagshipHull.replace(/[^A-Za-z0-9-]/g, '')}`
+        console.log(`[CSG-Scraper] Fallback designation ${resolvedDesignation} from hull number`)
+      } else {
+        resolvedDesignation = `${resolvedGroupType}-UNKNOWN`
+      }
     }
   }
 

@@ -144,9 +144,11 @@ export function TransitCorridorLayer({ map, visible }: TransitCorridorLayerProps
             if (btn) {
               btn.addEventListener('click', () => {
                 const type = btn.dataset.type || 'chokepoint'
-                const dataJson = decodeURIComponent(btn.dataset.brief || '{}')
-                if ((window as any).__requestBrief) {
-                  (window as any).__requestBrief(type, dataJson)
+                const data = JSON.parse(decodeURIComponent(btn.dataset.brief || '{}'))
+                // Use per-map handler instead of global singleton
+                const handler = (map as any)?.__briefHandler
+                if (handler) {
+                  handler(type, data)
                 }
               })
             }

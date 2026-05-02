@@ -367,8 +367,10 @@ export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JS
           btn.addEventListener('click', () => {
             const type = (btn as HTMLElement).dataset.type || 'ship'
             const data = JSON.parse(decodeURIComponent((btn as HTMLElement).dataset.brief || '{}'))
-            if ((window as any).__requestBrief) {
-              (window as any).__requestBrief(type, JSON.stringify(data))
+            // Use per-map handler instead of global singleton
+            const handler = (map as any)?.__briefHandler
+            if (handler) {
+              handler(type, data)
             }
           })
         })

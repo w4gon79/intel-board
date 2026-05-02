@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { setBriefHandler } from '../../lib/mapBrief'
+// mapBrief global is removed – handlers are stored per-map instance
 import ConflictZoneLayer from './ConflictZoneLayer'
 import FlightLayer from './FlightLayer'
 import ShipLayer from './ShipLayer'
@@ -135,11 +135,13 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
     }
   }, [])
 
-  // ── Register the brief handler so popup buttons can trigger AI briefs ──
+  // ── Register the brief handler PER MAP INSTANCE (not global singleton) ──
+  // Two SituationMaps render (desktop + mobile). A singleton handler would
+  // be overwritten by whichever mounts last, pointing at the wrong map.
   useEffect(() => {
-    setBriefHandler(async (type, data) => {
-      const map = mapRef.current
-      if (!map) return
+    const map = mapRef.current
+    if (!map) return
+    ;(map as any).__briefHandler = async (type: string, data: Record<string, unknown>) => {
 
       const coords: [number, number] = [
         (data.lon as number) ?? 0,
@@ -199,7 +201,8 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
           <div style="font-size:12px;color:#f87171;padding:4px 0">❌ Brief generation failed. Try again.</div>
         `)
       }
-    })
+    }
+    return () => { (map as any).__briefHandler = null }
   }, [mapReady])
 
   const showAdsb = layers?.adsb ?? true
