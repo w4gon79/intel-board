@@ -157,13 +157,13 @@ export function IntelFeedPanel(): React.JSX.Element {
             <span>{accuracy.total} total</span>
             {accuracy.resolved > 0 && (
               <>
-                <span className="text-emerald-500">{accuracy.accurate}✓</span>
-                <span className="text-red-400">{accuracy.inaccurate}✗</span>
+                <span className="text-emerald-500">{accuracy.accurate}✓acc</span>
+                <span className="text-red-400">{accuracy.inaccurate}✗miss</span>
                 {accuracy.partial > 0 && (
-                  <span className="text-amber-400">{accuracy.partial}~</span>
+                  <span className="text-amber-400">{accuracy.partial}~partial</span>
                 )}
                 {accuracy.inconclusive > 0 && (
-                  <span className="text-zinc-500">{accuracy.inconclusive}?</span>
+                  <span className="text-zinc-500">{accuracy.inconclusive}?inc</span>
                 )}
                 <span>•</span>
                 <span className={accuracy.accuracyRate >= 0.5 ? 'text-emerald-400' : accuracy.accuracyRate >= 0.25 ? 'text-amber-400' : 'text-red-400'}>

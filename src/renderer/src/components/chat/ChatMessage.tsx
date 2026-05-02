@@ -60,7 +60,15 @@ function renderWithCitations(text: string): React.ReactNode[] {
 export function ChatMessage({ role, content, sources = [], confidence, createdAt }: ChatMessageProps): React.JSX.Element {
   const [showSources, setShowSources] = useState(false)
   const isUser = role === 'user'
-  const timeStr = createdAt ? new Date(createdAt).toLocaleTimeString() : ''
+  const timeStr = createdAt
+    ? (() => {
+        // Ensure UTC parsing: if no timezone info, append Z
+        const d = new Date(/Z|[+-]\d{2}:\d{2}$/.test(createdAt) ? createdAt : createdAt + 'Z')
+        return d.toLocaleString(undefined, {
+          month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+        })
+      })()
+    : ''
 
   return (
     <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
