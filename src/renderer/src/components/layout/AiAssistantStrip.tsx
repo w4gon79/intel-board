@@ -6,7 +6,7 @@
  * - Expanded: shows full chat with messages, sources, and citations
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { ChatMessage } from '../chat/ChatMessage'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -41,6 +41,80 @@ const QUICK_QUESTIONS = [
   'Any ship traffic anomalies at choke points?'
 ]
 
+/** Memoized message list — doesn't re-render on input keystrokes */
+const MessageList = memo(function MessageList({
+  messages,
+  loading,
+  onQuickQuestion,
+  isMobileExpanded
+}: {
+  messages: Message[]
+  loading: boolean
+  onQuickQuestion: (q: string) => void
+  isMobileExpanded: boolean
+}): React.JSX.Element {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [messages, loading])
+
+  return (
+    <div ref={scrollRef} className={`${isMobileExpanded ? 'flex-1 min-h-0' : 'h-[calc(100%-40px)]'} overflow-y-auto px-3 py-2 space-y-2.5 scrollbar-thin`}>
+      {messages.length === 0 ? (
+        <div className="flex h-full flex-col items-center justify-center gap-3">
+          <div className="text-center">
+            <p className="text-xs text-zinc-400">Ask an intelligence question</p>
+            <p className="mt-0.5 text-[10px] text-zinc-600">
+              Answers are grounded in retrieved source material via RAG.
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {QUICK_QUESTIONS.map((q) => (
+              <button
+                key={q}
+                type="button"
+                onClick={() => onQuickQuestion(q)}
+                className="rounded-full border border-zinc-700/60 bg-zinc-800/50 px-2 py-0.5 text-[10px] text-zinc-400 transition-colors hover:border-sky-600/50 hover:text-sky-300"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <>
+          {messages.map((msg) => (
+            <ChatMessage
+              key={msg.id}
+              role={msg.role}
+              content={msg.content}
+              sources={msg.sources}
+              confidence={msg.confidence}
+              createdAt={msg.createdAt}
+            />
+          ))}
+          {loading && (
+            <div className="flex items-start gap-2">
+              <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/80 px-3 py-1.5">
+                <div className="flex items-center gap-2">
+                  <svg className="h-3 w-3 animate-spin text-sky-400" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span className="text-[10px] text-zinc-500">Analyzing sources…</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+})
+
 // ─── Component ─────────────────────────────────────────────────────────────
 
 interface AiAssistantStripProps {
@@ -53,7 +127,6 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // ── Load history on mount ──
@@ -80,13 +153,6 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
     }
     loadHistory()
   }, [])
-
-  // ── Auto-scroll ──
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [messages, loading])
 
   // ── Send message ──
   const sendMessage = useCallback(
@@ -143,59 +209,15 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
   const isMobileExpanded = expandedProp === true
 
   return (
-    <div className={`border-t border-zinc-800 bg-zinc-950/80 transition-all ${isMobileExpanded ? 'flex flex-col flex-1 min-h-0' : 'shrink-0'} ${expanded && !isMobileExpanded ? 'h-[240px]' : !isMobileExpanded ? 'h-auto' : ''}`}>
+    <div className={`border-t border-zinc-800 bg-zinc-950/80 ${isMobileExpanded ? 'flex flex-col flex-1 min-h-0' : 'shrink-0 transition-[height] duration-200'} ${expanded && !isMobileExpanded ? 'h-[240px]' : !isMobileExpanded ? 'h-auto' : ''}`}>
       {/* ── Chat area (when expanded) ── */}
       {expanded && (
-        <div ref={scrollRef} className={`${isMobileExpanded ? 'flex-1 min-h-0' : 'h-[calc(100%-40px)]'} overflow-y-auto px-3 py-2 space-y-2.5 scrollbar-thin`}>
-          {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-3">
-              <div className="text-center">
-                <p className="text-xs text-zinc-400">Ask an intelligence question</p>
-                <p className="mt-0.5 text-[10px] text-zinc-600">
-                  Answers are grounded in retrieved source material via RAG.
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-1.5">
-                {QUICK_QUESTIONS.map((q) => (
-                  <button
-                    key={q}
-                    type="button"
-                    onClick={() => sendMessage(q)}
-                    className="rounded-full border border-zinc-700/60 bg-zinc-800/50 px-2 py-0.5 text-[10px] text-zinc-400 transition-colors hover:border-sky-600/50 hover:text-sky-300"
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <>
-              {messages.map((msg) => (
-                <ChatMessage
-                  key={msg.id}
-                  role={msg.role}
-                  content={msg.content}
-                  sources={msg.sources}
-                  confidence={msg.confidence}
-                  createdAt={msg.createdAt}
-                />
-              ))}
-              {loading && (
-                <div className="flex items-start gap-2">
-                  <div className="rounded-lg border border-zinc-700/50 bg-zinc-800/80 px-3 py-1.5">
-                    <div className="flex items-center gap-2">
-                      <svg className="h-3 w-3 animate-spin text-sky-400" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      <span className="text-[10px] text-zinc-500">Analyzing sources…</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        <MessageList
+          messages={messages}
+          loading={loading}
+          onQuickQuestion={(q) => sendMessage(q)}
+          isMobileExpanded={isMobileExpanded}
+        />
       )}
 
       {/* ── Input bar ── */}
