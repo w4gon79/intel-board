@@ -18,6 +18,7 @@ Intel Board is a desktop application that aggregates open-source intelligence fr
 - **AIS vessel tracking** — Maritime traffic monitoring with vessel identification
 - **Economic indicators** — Commodity prices, currency data, bond yields
 - **Social media monitoring** — Configurable Twitter/social feed tracking
+- **Foreign language translation** — Automatic translation of non-English news articles using AI. Detects language, translates to English, and stores both original and translated text for search and analysis.
 
 ### Analysis
 - **AI Sense-Making** — Cross-source fusion analysis every 30 minutes. The AI reads all available intel and produces tactical assessments with full citations.
@@ -37,6 +38,7 @@ Intel Board is a desktop application that aggregates open-source intelligence fr
 - **Two-slot model config** — Primary + fallback AI models with automatic failover. Supports local Ollama, cloud OpenAI-compatible APIs, or any combination.
 - **World context** — Current world leaders, roles, and geopolitical context injected into AI prompts for accuracy
 - **Connection discovery** — AI identifies links between intel items from different sources
+- **Foreign language translation** — AI-powered translation of non-English articles. Language detection, full article translation, and bilingual storage (original + English) so translated content is searchable alongside English intel.
 - **Source verification** — Every AI claim links back to its source document
 
 ## Prerequisites
