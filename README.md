@@ -80,7 +80,7 @@ On first launch, open **Settings** (gear icon) to configure your API keys. The a
 
 ### Remote Access (Phone/Browser)
 
-The HTTP server starts automatically on port 8902. Access the dashboard from any device on your network:
+The HTTP server starts automatically on port 3210. Access the dashboard from any device on your network:
 ```
 http://<your-ip>:8902
 ```
