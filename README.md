@@ -82,7 +82,7 @@ On first launch, open **Settings** (gear icon) to configure your API keys. The a
 
 The HTTP server starts automatically on port 3210. Access the dashboard from any device on your network:
 ```
-http://<your-ip>:8902
+http://<your-ip>:3210
 ```
 
 ## Configuration
