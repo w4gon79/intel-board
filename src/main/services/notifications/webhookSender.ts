@@ -9,9 +9,9 @@ export interface WebhookConfig {
 }
 
 export interface WebhookPayload {
-  type: 'alert'
+  type: 'alert' | 'detection'
   timestamp: string
-  rule: {
+  rule?: {
     name: string
     severity: 'ALERT' | 'WATCH' | 'CONTEXT'
     entity_type: string
@@ -24,8 +24,17 @@ export interface WebhookPayload {
     lon?: number | null
   }
   matchCount?: number
-  intelItemId: string
-  region: string
+  intelItemId?: string
+  region?: string
+  detection?: {
+    tier: string
+    title: string
+    summary: string
+    region: string
+    categories: string[]
+    latitude: number | null
+    longitude: number | null
+  }
 }
 
 export async function sendWebhook(

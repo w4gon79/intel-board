@@ -8,6 +8,7 @@
 
 import { getDatabase } from './storage/database'
 import { insertIntelItem } from './storage/dbService'
+import { notifyIntelItem } from './notifications/notificationService'
 import { getCSGContextString } from './csg/csgService'
 import { withWorldContext } from '../utils/worldContext'
 import { CHOKE_POINTS } from './ais/aisService'
@@ -543,15 +544,19 @@ function storeAnalysisResult(analysis: SenseMakingResult): void {
   // No similar existing analysis, insert
   const tier = severityToTier(analysis.severity)
 
+  const title = `[AI Analysis] ${analysis.title}`
+  const categories = ['ai-sensemaking', 'analysis', analysis.severity]
+  const sources = ['ai-sensemaking']
+
   insertIntelItem({
     tier,
-    title: `[AI Analysis] ${analysis.title}`,
+    title,
     summary: `${analysis.summary}\n\nAssessment: ${analysis.analysis}\nSeverity: ${analysis.severity}`,
     analysis: analysis.analysis,
     confidence: severityToConfidence(analysis.severity),
-    sources: ['ai-sensemaking'],
+    sources,
     region: analysis.region,
-    categories: ['ai-sensemaking', 'analysis', analysis.severity],
+    categories,
     updated_at: null,
     expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     latitude: null,
@@ -559,6 +564,18 @@ function storeAnalysisResult(analysis: SenseMakingResult): void {
   })
 
   console.log(`[SenseMaking] Stored: ${analysis.title} (${analysis.severity})`)
+
+  // Send notification for sense-making analysis
+  notifyIntelItem({
+    tier,
+    title,
+    summary: analysis.summary,
+    region: analysis.region,
+    categories,
+    latitude: null,
+    longitude: null,
+    sources
+  }).catch(err => console.error('[SenseMaking] Notification failed:', err))
 }
 
 function severityToTier(severity: string): 'ALERT' | 'WATCH' | 'CONTEXT' {

@@ -24,6 +24,9 @@ export interface AppSettings {
     militaryFlights: boolean
     chokePoints: boolean
     newsSpikes: boolean
+    notifyTactical: boolean
+    notifyEconomic: boolean
+    notifySenseMaking: boolean
   }
   // Map Preferences
   map: {
@@ -142,7 +145,10 @@ const DEFAULT_SETTINGS: AppSettings = {
   alerts: {
     militaryFlights: true,
     chokePoints: true,
-    newsSpikes: true
+    newsSpikes: true,
+    notifyTactical: true,
+    notifyEconomic: true,
+    notifySenseMaking: false
   },
   map: {
     militaryOnly: false,

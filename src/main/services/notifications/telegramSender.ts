@@ -83,6 +83,72 @@ export async function sendTelegram(
   }
 }
 
+/** Send a built-in detection notification to Telegram */
+export async function sendTelegramDetection(
+  config: TelegramConfig,
+  item: {
+    tier: string
+    title: string
+    summary: string
+    region: string | null
+    categories: string[]
+    latitude: number | null
+    longitude: number | null
+    sources: string[] | string
+  }
+): Promise<{ ok: boolean; error?: string }> {
+  if (!config.enabled || !config.botToken || !config.chatId) {
+    return { ok: false, error: 'Telegram not configured' }
+  }
+
+  const emoji = item.tier === 'ALERT' ? '🚨' : '📡'
+  const primaryCategory = item.categories[0] ?? 'detection'
+  const catStr = item.categories.join(', ')
+  const sourceArr = Array.isArray(item.sources) ? item.sources : [item.sources]
+
+  const locationLine =
+    item.latitude != null && item.longitude != null
+      ? `\n📍 ${Math.abs(item.latitude).toFixed(1)}°${item.latitude >= 0 ? 'N' : 'S'}, ${Math.abs(item.longitude).toFixed(1)}°${item.longitude >= 0 ? 'E' : 'W'}`
+      : ''
+
+  const text = [
+    `${emoji} ${item.tier}: ${item.title}`,
+    `Type: ${primaryCategory} | Region: ${item.region ?? 'Unknown'}`,
+    `Categories: ${catStr}`,
+    '',
+    item.summary,
+    locationLine,
+    '',
+    `Sources: ${sourceArr.join(', ')}`
+  ].join('\n')
+
+  try {
+    const url = `https://api.telegram.org/bot${config.botToken}/sendMessage`
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: config.chatId,
+        text,
+        parse_mode: 'HTML'
+      }),
+      signal: AbortSignal.timeout(10_000)
+    })
+
+    if (!resp.ok) {
+      const body = await resp.text()
+      return { ok: false, error: `HTTP ${resp.status}: ${body.slice(0, 200)}` }
+    }
+
+    return { ok: true }
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Telegram send failed'
+    }
+  }
+}
+
 /** Send a test message to verify Telegram configuration */
 export async function sendTelegramTest(
   config: TelegramConfig

@@ -12,6 +12,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getDatabase } from './storage/database'
 import { insertIntelItem } from './storage/dbService'
+import { notifyIntelItem } from './notifications/notificationService'
 import { loadSettings } from '../ipc/settings.handlers'
 
 // ── Types ──
@@ -453,20 +454,35 @@ function createIntelItemForAnomaly(
     return
   }
 
+  const sources = [config.fredSeries ? `FRED: ${config.fredSeries}` : `Yahoo Finance: ${config.yahooSymbol}`]
+  const categories = ['economic', config.category, ...(config.relatedZones.map(z => `zone:${z}`))]
+
   insertIntelItem({
     tier,
     title,
     summary,
     analysis: null,
     confidence: 0.9,
-    sources: [config.fredSeries ? `FRED: ${config.fredSeries}` : `Yahoo Finance: ${config.yahooSymbol}`],
+    sources,
     region: config.relatedZones[0] ?? 'Global',
-    categories: ['economic', config.category, ...(config.relatedZones.map(z => `zone:${z}`))],
+    categories,
     updated_at: null,
     expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // expires in 24h
   })
 
   console.log(`[economic] Created ${tier} intel item: ${title}`)
+
+  // Send notification for economic anomaly
+  notifyIntelItem({
+    tier,
+    title,
+    summary,
+    region: config.relatedZones[0] ?? 'Global',
+    categories,
+    latitude: null,
+    longitude: null,
+    sources
+  }).catch(err => console.error('[economic] Notification failed:', err))
 }
 
 // ── Value Formatting ──

@@ -131,6 +131,27 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
               checked={settings.alerts.newsSpikes}
               onChange={(v) => update('alerts', { newsSpikes: v })}
             />
+
+            <div className="pt-2 pb-1">
+              <p className="text-xs text-zinc-500 uppercase tracking-wider font-medium mb-2">
+                Push Notifications for Built-in Detections
+              </p>
+            </div>
+            <ToggleRow
+              label="Tactical Events (HVA, airlift, formations)"
+              checked={settings.alerts.notifyTactical}
+              onChange={(v) => update('alerts', { notifyTactical: v })}
+            />
+            <ToggleRow
+              label="Economic Anomalies (commodities, currencies)"
+              checked={settings.alerts.notifyEconomic}
+              onChange={(v) => update('alerts', { notifyEconomic: v })}
+            />
+            <ToggleRow
+              label="AI Sense-Making Analysis"
+              checked={settings.alerts.notifySenseMaking}
+              onChange={(v) => update('alerts', { notifySenseMaking: v })}
+            />
           </Section>
 
           {/* ── Custom Alert Rules ── */}

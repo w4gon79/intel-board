@@ -286,6 +286,9 @@ declare global {
       militaryFlights: boolean
       chokePoints: boolean
       newsSpikes: boolean
+      notifyTactical: boolean
+      notifyEconomic: boolean
+      notifySenseMaking: boolean
     }
     map: {
       militaryOnly: boolean

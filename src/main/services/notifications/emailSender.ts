@@ -92,6 +92,83 @@ export async function sendEmail(
   }
 }
 
+/** Send a built-in detection notification via email */
+export async function sendEmailDetection(
+  config: EmailConfig,
+  item: {
+    tier: string
+    title: string
+    summary: string
+    region: string | null
+    categories: string[]
+    latitude: number | null
+    longitude: number | null
+    sources: string[] | string
+  }
+): Promise<{ ok: boolean; error?: string }> {
+  if (!config.enabled || !config.host || !config.to) {
+    return { ok: false, error: 'Email not configured' }
+  }
+
+  const emoji = item.tier === 'ALERT' ? '🚨' : '📡'
+  const subject = `[Intel Board] ${emoji} ${item.tier}: ${item.title}`
+  const primaryCategory = item.categories[0] ?? 'detection'
+
+  const locationLine =
+    item.latitude != null && item.longitude != null
+      ? `📍 ${Math.abs(item.latitude).toFixed(2)}°${item.latitude >= 0 ? 'N' : 'S'}, ${Math.abs(item.longitude).toFixed(2)}°${item.longitude >= 0 ? 'E' : 'W'}`
+      : ''
+
+  const timeStr = new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')
+
+  const sourceArr = Array.isArray(item.sources) ? item.sources : [item.sources]
+
+  const body = [
+    'Intel Board Detection',
+    '=====================',
+    '',
+    `Type: ${primaryCategory}`,
+    `Severity: ${item.tier}`,
+    `Region: ${item.region ?? 'Unknown'}`,
+    `Categories: ${item.categories.join(', ')}`,
+    '',
+    item.summary,
+    '',
+    locationLine,
+    `Time: ${timeStr}`,
+    '',
+    `Sources: ${sourceArr.join(', ')}`
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.port === 465,
+      auth: config.user ? { user: config.user, pass: config.password } : undefined,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000
+    })
+
+    await transporter.sendMail({
+      from: config.from || config.user || 'intelboard@localhost',
+      to: config.to,
+      subject,
+      text: body
+    })
+
+    transporter.close()
+    return { ok: true }
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Email send failed'
+    }
+  }
+}
+
 /** Send a test email to verify SMTP configuration */
 export async function sendEmailTest(
   config: EmailConfig

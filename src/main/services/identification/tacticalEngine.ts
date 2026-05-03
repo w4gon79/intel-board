@@ -16,6 +16,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getDatabase } from '../storage/database'
 import { insertIntelItem } from '../storage/dbService'
+import { notifyIntelItem } from '../notifications/notificationService'
 import { getActiveConflictZones } from '../analysis/zoneEngine'
 import { REGION_AREAS } from '../../../shared/regions'
 import type { IntelTier } from '../../../shared/types'
@@ -633,6 +634,18 @@ function syncTacticalEventsToIntelFeed(): void {
         longitude: event.longitude
       })
       console.log(`[TacticalEngine] Intel item created: ${title}`)
+
+      // Send notification for new tactical detection (not updates)
+      notifyIntelItem({
+        tier: event.severity,
+        title,
+        summary: event.description,
+        region: event.region,
+        categories: [event.event_type, 'tactical'],
+        latitude: event.latitude,
+        longitude: event.longitude,
+        sources: event.assets
+      }).catch(err => console.error('[TacticalEngine] Notification failed:', err))
     } else if (SPATIAL_EVENT_TYPES.includes(event.event_type) && event.latitude != null && event.longitude != null) {
       // Update existing nearby item with latest position and description
       db.prepare(
