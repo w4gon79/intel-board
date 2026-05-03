@@ -17,7 +17,7 @@ Intel Board is a desktop application that aggregates open-source intelligence fr
 - **ADS-B/aircraft tracking** — Real-time military aircraft detection via tar1090/AirNav
 - **AIS vessel tracking** — Maritime traffic monitoring with vessel identification
 - **Economic indicators** — Commodity prices, currency data, bond yields
-- **Social media monitoring** — Configurable Twitter/social feed tracking
+- **Social media monitoring** — Reddit and BlueSky feed tracking with configurable polling
 - **Foreign language translation** — Automatic translation of non-English news articles using AI. Detects language, translates to English, and stores both original and translated text for search and analysis.
 
 ### Analysis
