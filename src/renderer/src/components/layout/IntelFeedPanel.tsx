@@ -67,6 +67,7 @@ export function IntelFeedPanel(): React.JSX.Element {
       document.addEventListener('mousedown', handleClickOutside)
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
+    return undefined
   }, [showExportDropdown])
 
   // Auto-dismiss toast
@@ -75,6 +76,7 @@ export function IntelFeedPanel(): React.JSX.Element {
       const timer = setTimeout(() => setToast(null), 4000)
       return () => clearTimeout(timer)
     }
+    return undefined
   }, [toast])
 
   // Export handler

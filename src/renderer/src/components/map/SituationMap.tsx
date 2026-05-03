@@ -14,6 +14,9 @@ import { RegionLayer } from './RegionLayer'
 import { MapDrawLayer } from './MapDrawLayer'
 import { AlertZoneLayer } from './AlertZoneLayer'
 import type { LayerVisibility } from './LayerControls'
+import { TacticalOverlayLayer } from './TacticalOverlayLayer'
+import { AnnotationToolbar } from './AnnotationToolbar'
+import type { AnnotationType } from '../../../../shared/types'
 
 /** CARTO dark basemap tiles – free, no API key, dark theme. */
 const MAP_STYLE = {
@@ -68,6 +71,9 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
   const [mapReady, setMapReady] = useState(false)
   const [cursorCoords, setCursorCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [drawBanner, setDrawBanner] = useState<string | null>(null)
+  const [annotationTool, setAnnotationTool] = useState<AnnotationType | 'eraser' | null>(null)
+  const [annotationColor, setAnnotationColor] = useState('#f59e0b')
+  const [annotationLayer, setAnnotationLayer] = useState('default')
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -213,6 +219,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
   const showCorridors = layers?.corridors ?? false
   const showRegions = layers?.regions ?? false
   const showZones = layers?.zones ?? true
+  const showAnnotations = layers?.annotations ?? true
 
   // Read settings for military-only filter, clustering, etc.
   const [showAllFlights, setShowAllFlights] = useState(true)
@@ -340,6 +347,28 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
       {mapReady && mapRef.current && (
         <AlertZoneLayer map={mapRef.current} />
       )}
+
+      {/* Tactical Overlay — Annotations */}
+      {mapReady && mapRef.current && (
+        <TacticalOverlayLayer
+          map={mapRef.current}
+          visible={showAnnotations}
+          activeTool={annotationTool}
+          selectedColor={annotationColor}
+          activeLayer={annotationLayer}
+        />
+      )}
+
+      {/* Annotation Toolbar */}
+      <AnnotationToolbar
+        activeTool={annotationTool}
+        onToolChange={setAnnotationTool}
+        selectedColor={annotationColor}
+        onColorChange={setAnnotationColor}
+        activeLayer={annotationLayer}
+        onLayerChange={setAnnotationLayer}
+        visible={showAnnotations}
+      />
 
       {/* Draw mode banner */}
       {drawBanner && (

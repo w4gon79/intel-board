@@ -17,7 +17,8 @@ const DEFAULT_LAYERS: LayerVisibility = {
   intel: true,
   corridors: false,
   regions: false,
-  zones: true
+  zones: true,
+  annotations: true
 }
 
 export function AppShell(): React.JSX.Element {

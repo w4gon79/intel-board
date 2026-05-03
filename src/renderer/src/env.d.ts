@@ -289,6 +289,15 @@ interface Window {
         canceled?: boolean
       }>
     }
+
+    // ── Map Annotations (Tactical Overlay) ──
+    annotations: {
+      list: (layer?: string) => Promise<SharedTypes['MapAnnotation'][]>
+      create: (data: Omit<SharedTypes['MapAnnotation'], 'id' | 'created_at' | 'updated_at'>) => Promise<SharedTypes['MapAnnotation']>
+      update: (id: string, updates: Partial<Pick<SharedTypes['MapAnnotation'], 'label' | 'description' | 'color' | 'coordinates' | 'visible' | 'layer' | 'icon'>>) => Promise<boolean>
+      delete: (id: string) => Promise<boolean>
+      getLayers: () => Promise<string[]>
+    }
   }
 }
 

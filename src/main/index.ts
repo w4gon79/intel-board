@@ -30,6 +30,7 @@ import { registerZoneHandlers } from './ipc/zone.handlers'
 import { registerNotamHandlers, initNotamScheduler, stopNotamSchedulerHandlers } from './ipc/notam.handlers'
 import { registerNotificationHandlers } from './ipc/notification.handlers'
 import { registerExportHandlers } from './ipc/export.handlers'
+import { registerAnnotationHandlers } from './ipc/annotation.handlers'
 import { startSenseMakingScheduler, stopSenseMakingScheduler } from './services/senseMakingEngine'
 import { setupContextMenu } from './contextMenu'
 import { startScrapers, stopScrapers } from './services/scrapers/scraperManager'
@@ -196,6 +197,7 @@ app.whenReady().then(() => {
   registerNotamHandlers()
   registerNotificationHandlers()
   registerExportHandlers()
+  registerAnnotationHandlers()
 
   // Pre-seed aircraft registry from OpenSky database (runs once if cache is empty)
   seedAircraftRegistryIfNeeded().catch((err) => {

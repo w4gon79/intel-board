@@ -26,7 +26,9 @@ import type {
   Prediction,
   PredictionReviewInfo,
   InsertPrediction,
-  IntelTier
+  IntelTier,
+  MapAnnotation,
+  InsertAnnotation
 } from '../../../shared/types'
 
 // ── Helpers ──
@@ -1252,4 +1254,88 @@ export function deleteIntelItemsByIds(ids: string[]): number {
     return totalDeleted
   })
   return deleteMany(ids)
+}
+
+// ════════════════════════════════════════════
+// MAP ANNOTATIONS (Tactical Overlay)
+// ════════════════════════════════════════════
+
+function hydrateAnnotation(row: DbRow): MapAnnotation {
+  return {
+    id: row.id as string,
+    type: row.type as MapAnnotation['type'],
+    label: (row.label as string) ?? null,
+    description: (row.description as string) ?? null,
+    coordinates: row.coordinates as string,
+    color: row.color as string,
+    icon: (row.icon as string) ?? null,
+    layer: row.layer as string,
+    visible: (row.visible as number) === 1,
+    created_at: row.created_at as string,
+    updated_at: (row.updated_at as string) ?? null
+  }
+}
+
+export function createAnnotation(data: InsertAnnotation): MapAnnotation {
+  const db = getDatabase()
+  const id = uuidv4()
+  const created_at = new Date().toISOString()
+
+  db.prepare(`
+    INSERT INTO map_annotations (id, type, label, description, coordinates, color, icon, layer, visible, created_at)
+    VALUES (@id, @type, @label, @description, @coordinates, @color, @icon, @layer, @visible, @created_at)
+  `).run({
+    id,
+    type: data.type,
+    label: data.label ?? null,
+    description: data.description ?? null,
+    coordinates: data.coordinates,
+    color: data.color,
+    icon: data.icon ?? null,
+    layer: data.layer ?? 'default',
+    visible: data.visible !== false ? 1 : 0,
+    created_at
+  })
+
+  return { ...data, id, created_at, updated_at: null } as MapAnnotation
+}
+
+export function getAnnotations(layer?: string): MapAnnotation[] {
+  const db = getDatabase()
+  const rows = layer
+    ? db.prepare('SELECT * FROM map_annotations WHERE layer = ? ORDER BY created_at DESC').all(layer) as DbRow[]
+    : db.prepare('SELECT * FROM map_annotations ORDER BY created_at DESC').all() as DbRow[]
+  return rows.map(hydrateAnnotation)
+}
+
+export function updateAnnotation(id: string, updates: Partial<Pick<MapAnnotation, 'label' | 'description' | 'color' | 'coordinates' | 'visible' | 'layer' | 'icon'>>): boolean {
+  const db = getDatabase()
+  const sets: string[] = []
+  const params: Record<string, unknown> = { id }
+
+  if (updates.label !== undefined) { sets.push('label = @label'); params.label = updates.label }
+  if (updates.description !== undefined) { sets.push('description = @description'); params.description = updates.description }
+  if (updates.color !== undefined) { sets.push('color = @color'); params.color = updates.color }
+  if (updates.coordinates !== undefined) { sets.push('coordinates = @coordinates'); params.coordinates = updates.coordinates }
+  if (updates.visible !== undefined) { sets.push('visible = @visible'); params.visible = updates.visible ? 1 : 0 }
+  if (updates.layer !== undefined) { sets.push('layer = @layer'); params.layer = updates.layer }
+  if (updates.icon !== undefined) { sets.push('icon = @icon'); params.icon = updates.icon }
+
+  if (sets.length === 0) return false
+
+  sets.push("updated_at = datetime('now')")
+  const result = db.prepare(`UPDATE map_annotations SET ${sets.join(', ')} WHERE id = @id`).run(params)
+  return result.changes > 0
+}
+
+export function deleteAnnotation(id: string): boolean {
+  const db = getDatabase()
+  const result = db.prepare('DELETE FROM map_annotations WHERE id = ?').run(id)
+  return result.changes > 0
+}
+
+export function getAnnotationLayers(): string[] {
+  const db = getDatabase()
+  const rows = db.prepare('SELECT DISTINCT layer FROM map_annotations ORDER BY layer').all() as { layer: string }[]
+  return rows.map(r => r.layer)
 }

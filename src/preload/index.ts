@@ -351,6 +351,21 @@ const api = {
   logger: {
     /** Read the most recent lines from the main-process log file */
     getRecent: (lines?: number) => ipcRenderer.invoke('logger:getRecent', lines)
+  },
+
+  // ── Map Annotations (Tactical Overlay) ──
+  annotations: {
+    /** Get all annotations, optionally filtered by layer */
+    list: (layer?: string) => ipcRenderer.invoke('annotations:list', layer),
+    /** Create a new annotation */
+    create: (data: Record<string, unknown>) => ipcRenderer.invoke('annotations:create', data),
+    /** Update an annotation */
+    update: (id: string, updates: Record<string, unknown>) =>
+      ipcRenderer.invoke('annotations:update', id, updates),
+    /** Delete an annotation */
+    delete: (id: string) => ipcRenderer.invoke('annotations:delete', id),
+    /** Get distinct layer names */
+    getLayers: () => ipcRenderer.invoke('annotations:layers')
   }
 }
 

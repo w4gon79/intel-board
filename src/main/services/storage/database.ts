@@ -357,6 +357,21 @@ CREATE INDEX IF NOT EXISTS idx_conflict_zones_heat ON conflict_zones(heat_score 
   CREATE INDEX IF NOT EXISTS idx_notams_type ON notams(type);
   CREATE INDEX IF NOT EXISTS idx_notams_coords ON notams(lat, lon) WHERE lat IS NOT NULL;
 
+  -- Tactical overlay annotations (persistent map markers/shapes)
+  CREATE TABLE IF NOT EXISTS map_annotations (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL CHECK(type IN ('marker', 'line', 'polygon', 'circle', 'text')),
+    label TEXT,
+    description TEXT,
+    coordinates TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT '#f59e0b',
+    icon TEXT,
+    layer TEXT NOT NULL DEFAULT 'default',
+    visible INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT
+  );
+
   -- Custom alert rules (Phase 5A)
   CREATE TABLE IF NOT EXISTS alert_rules (
   id TEXT PRIMARY KEY,

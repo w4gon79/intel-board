@@ -160,6 +160,26 @@ export type InsertIntelItem = Omit<IntelItem, 'id' | 'created_at' | 'latitude' |
   latitude?: number | null
   longitude?: number | null
 }
+// ── Map Annotation (Tactical Overlay) ──
+
+export type AnnotationType = 'marker' | 'line' | 'polygon' | 'circle' | 'text'
+
+export interface MapAnnotation {
+  id: string
+  type: AnnotationType
+  label: string | null
+  description: string | null
+  coordinates: string // JSON string
+  color: string
+  icon: string | null
+  layer: string
+  visible: boolean
+  created_at: string
+  updated_at: string | null
+}
+
+export type InsertAnnotation = Omit<MapAnnotation, 'id' | 'created_at' | 'updated_at'>
+
 export type InsertAnomaly = Omit<Anomaly, 'id' | 'detected_at'>
 export type InsertPrediction = Omit<Prediction, 'id' | 'predicted_at'>
 
