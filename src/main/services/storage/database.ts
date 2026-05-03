@@ -629,6 +629,31 @@ function migrateLatLonColumns(database: Database.Database): void {
 }
 
 /**
+ * Migrate articles table to add language, title_original, content_original columns.
+ * Supports multi-language news sources with translation pipeline.
+ */
+function migrateArticleLanguageColumns(database: Database.Database): void {
+  const migrations = [
+    { table: 'articles', column: 'language', def: 'TEXT DEFAULT \'en\'' },
+    { table: 'articles', column: 'title_original', def: 'TEXT' },
+    { table: 'articles', column: 'content_original', def: 'TEXT' },
+  ]
+  for (const { table, column, def } of migrations) {
+    try {
+      const cols = database.pragma(`table_info(${table})`) as { name: string }[]
+      const colNames = cols.map(c => c.name)
+      if (!colNames.includes(column)) {
+        console.log(`[database] Adding ${column} column to ${table}...`)
+        database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`)
+        console.log(`[database] ${table}.${column} added successfully`)
+      }
+    } catch (err) {
+      console.warn(`[database] ${table} language migration skipped:`, err)
+    }
+  }
+}
+
+/**
  * Seed the conflict_zones table with the static zones from conflict-zones.json.
  * Only runs once (checks if table is empty). Seeds with status 'monitoring'
  * and heat_score 3.0 so they'll naturally fade if no real signals support them.
@@ -696,6 +721,7 @@ export function initDatabase(): Database.Database {
   migrateLatLonColumns(db)
   migrateAlertRulesTimeWindow(db)
   migrateAlertRulesFiltersTrigger(db)
+  migrateArticleLanguageColumns(db)
   seedStaticConflictZones(db)
 
   console.log('[database] Schema initialized successfully')

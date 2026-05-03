@@ -112,7 +112,10 @@ const api = {
     testAI: (config: { provider: string; ollamaBaseUrl?: string; openaiBaseUrl?: string; openaiApiKey?: string }) =>
       ipcRenderer.invoke('settings:testAI', config),
     /** Test an API key by making a real API call */
-    testApiKey: (service: string) => ipcRenderer.invoke('settings:testApiKey', service)
+    testApiKey: (service: string) => ipcRenderer.invoke('settings:testApiKey', service),
+    /** Test the translation pipeline with a sample phrase */
+    testTranslation: (text: string, language: string) =>
+      ipcRenderer.invoke('settings:testTranslation', text, language)
   },
 
   // ── ADS-B / Flight Tracking ──

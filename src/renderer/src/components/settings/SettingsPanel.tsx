@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { AlertRulesPanel } from './AlertRulesPanel'
 import { SocialMediaPanel } from './SocialMediaPanel'
 import { ApiKeysPanel } from './ApiKeysPanel'
+import { TranslationPanel } from './TranslationPanel'
 
 interface SettingsPanelProps {
   open: boolean
@@ -359,6 +360,20 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
                 </div>
               )}
             </div>
+          </Section>
+
+          {/* ── Translation Pipeline ── */}
+          <Section title="Translation Pipeline">
+            <TranslationPanel
+              settings={settings.translation}
+              aiBaseUrl={settings.ai.ollamaBaseUrl}
+              onUpdate={(patch) =>
+                setSettings({
+                  ...settings,
+                  translation: { ...settings.translation, ...patch }
+                })
+              }
+            />
           </Section>
 
           {/* ── API Keys ── */}

@@ -442,6 +442,10 @@ export async function processArticles(raw: RawArticle[]): Promise<IngestionResul
       const topics = extractTopics(text)
       const sentiment = estimateSentiment(text)
 
+      // Determine language — use source tag if provided, else default 'en'
+      const language = article.language || 'en'
+      const isNonEnglish = language !== 'en'
+
       // Build insert payload
       const insertData: InsertArticle = {
         source: article.source,
@@ -452,7 +456,11 @@ export async function processArticles(raw: RawArticle[]): Promise<IngestionResul
         sentiment,
         entities,
         region,
-        topics
+        topics,
+        language,
+        // For non-English articles, store original text; translation fills in later
+        title_original: isNonEnglish ? article.title : null,
+        content_original: isNonEnglish ? article.content : null
       }
 
       const saved = insertArticle(insertData)

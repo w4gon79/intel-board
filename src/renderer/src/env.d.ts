@@ -112,6 +112,7 @@ interface Window {
       testOpenaiConnection: (baseUrl: string, apiKey: string) => Promise<{ ok: boolean; error?: string }>
       testAI: (config: { provider: string; ollamaBaseUrl?: string; openaiBaseUrl?: string; openaiApiKey?: string }) => Promise<{ ok: boolean; error?: string; models?: number }>
       testApiKey: (service: string) => Promise<{ ok: boolean; error?: string }>
+      testTranslation: (text: string, language: string) => Promise<{ ok: boolean; translation?: string; error?: string }>
     }
 
     // ── ADS-B ──
@@ -334,6 +335,14 @@ declare global {
       fredApiKey: string
       zaiApiKey: string
       zaiBaseUrl: string
+    }
+    translation: {
+      enabled: boolean
+      batchSize: number
+      batchDelayMs: number
+      modelEndpoint: string
+      model: string
+      sourceLanguages: string[]
     }
   }
 

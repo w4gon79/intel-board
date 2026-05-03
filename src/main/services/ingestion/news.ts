@@ -17,6 +17,7 @@ export interface RawArticle {
   publishedAt: string | null
   author: string | null
   imageUrl: string | null
+  language?: string // ISO 639-1 code, default 'en'
 }
 
 // ── Ingestion result ──
@@ -297,4 +298,136 @@ function parseGdeltDate(raw: string): string {
   const iso = `${year}-${month}-${day}T${hour}:${min}:${sec}Z`
   const parsed = new Date(iso)
   return isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString()
+}
+
+// ════════════════════════════════════════════
+// Non-English Sources (Multi-Language Translation Pipeline)
+// ════════════════════════════════════════════
+
+interface NonEnglishSource {
+  id: string
+  name: string
+  url: string
+  language: string
+  type: 'rss'
+}
+
+const NON_ENGLISH_SOURCES: NonEnglishSource[] = [
+  { id: 'rt-ru', name: 'RT Russian', url: 'https://russian.rt.com/rss/', language: 'ru', type: 'rss' },
+  { id: 'aljaz-ar', name: 'Al Jazeera Arabic', url: 'https://www.aljazeera.net/xml/rss/all.xml', language: 'ar', type: 'rss' },
+  { id: 'xinhua-zh', name: 'Xinhua Chinese', url: 'http://www.xinhuanet.com/politics/news_politics.xml', language: 'zh', type: 'rss' },
+  { id: 'irna-fa', name: 'IRNA Farsi', url: 'https://www.irna.ir/rss', language: 'fa', type: 'rss' },
+  { id: 'yonhap-ko', name: 'Yonhap Korean', url: 'https://www.yna.co.kr/RSS/news.xml', language: 'ko', type: 'rss' },
+  { id: 'telesur-es', name: 'TeleSUR Spanish', url: 'https://www.telesurtv.net/rss/', language: 'es', type: 'rss' },
+]
+
+/** Language name mapping for display */
+export const LANGUAGE_NAMES: Record<string, string> = {
+  ar: 'Arabic',
+  ru: 'Russian',
+  zh: 'Chinese',
+  fa: 'Farsi',
+  ko: 'Korean',
+  es: 'Spanish',
+  en: 'English',
+}
+
+/**
+ * Fetch articles from non-English RSS sources.
+ * Only fetches from sources matching the enabled language codes.
+ * Returns RawArticle[] with language field set (not 'en').
+ */
+export async function fetchNonEnglishSources(
+  enabledLanguages: string[] = ['ar', 'ru', 'zh', 'fa', 'ko', 'es']
+): Promise<RawArticle[]> {
+  const sources = NON_ENGLISH_SOURCES.filter(s => enabledLanguages.includes(s.language))
+  if (sources.length === 0) return []
+
+  const allArticles: RawArticle[] = []
+
+  for (const source of sources) {
+    try {
+      console.log(`[ingestion:i18n] Fetching ${source.name} (${source.language})...`)
+      const articles = await fetchRssFeed(source)
+      console.log(`[ingestion:i18n] ${source.name}: ${articles.length} articles`)
+      allArticles.push(...articles)
+    } catch (err) {
+      console.warn(`[ingestion:i18n] ${source.name} fetch failed:`, err instanceof Error ? err.message : err)
+    }
+  }
+
+  return allArticles
+}
+
+/**
+ * Fetch and parse an RSS feed, returning normalized RawArticle[].
+ * Handles XML parsing for RSS 2.0 feeds. Non-English articles are tagged with their language.
+ */
+async function fetchRssFeed(source: NonEnglishSource): Promise<RawArticle[]> {
+  const resp = await fetch(source.url, {
+    headers: { 'User-Agent': 'IntelBoard/1.0' },
+    signal: AbortSignal.timeout(15_000)
+  })
+
+  if (!resp.ok) {
+    console.warn(`[ingestion:i18n] ${source.name} returned HTTP ${resp.status}`)
+    return []
+  }
+
+  const text = await resp.text()
+
+  // Basic RSS 2.0 parsing — extract <item> elements
+  const items: RawArticle[] = []
+  const itemRegex = /<item[\s\S]*?<\/item>/gi
+  let match: RegExpExecArray | null
+
+  while ((match = itemRegex.exec(text)) !== null) {
+    const itemXml = match[0]
+
+    const title = extractXmlTag(itemXml, 'title')
+    const link = extractXmlTag(itemXml, 'link')
+    const description = extractXmlTag(itemXml, 'description')
+    const pubDate = extractXmlTag(itemXml, 'pubDate')
+
+    if (!title && !description) continue
+
+    items.push({
+      source: `${source.id}:${source.name}`,
+      title: title || null,
+      content: description || null,
+      url: link || null,
+      publishedAt: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
+      author: null,
+      imageUrl: null,
+      language: source.language
+    })
+  }
+
+  return items
+}
+
+/** Extract text content of an XML tag, handling CDATA sections */
+function extractXmlTag(xml: string, tag: string): string | null {
+  // Try CDATA first
+  const cdataRegex = new RegExp(`<${tag}[\\s\\S]*?>\\s*<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>\\s*</${tag}>`, 'i')
+  const cdataMatch = cdataRegex.exec(xml)
+  if (cdataMatch) return decodeXmlEntities(cdataMatch[1].trim())
+
+  // Plain text
+  const plainRegex = new RegExp(`<${tag}[\\s\\S]*?>([\\s\\S]*?)</${tag}>`, 'i')
+  const plainMatch = plainRegex.exec(xml)
+  if (plainMatch) return decodeXmlEntities(plainMatch[1].trim())
+
+  return null
+}
+
+/** Decode common XML entities */
+function decodeXmlEntities(text: string): string {
+  const map: Record<string, string> = {}
+  map['a' + 'mp'] = String.fromCharCode(38) // &
+  map['l' + 't'] = String.fromCharCode(60)   // <
+  map['g' + 't'] = String.fromCharCode(62)   // >
+  map['q' + 'uot'] = String.fromCharCode(34) // "
+  map['a' + 'pos'] = String.fromCharCode(39) // '
+  return text.replace(/&(amp|lt|gt|quot|apos);/g, (_m, name: string) => map[name] || _m)
 }

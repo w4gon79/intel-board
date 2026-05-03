@@ -25,6 +25,9 @@ export interface Article {
   entities: string[] // JSON array of extracted entities
   region: string | null
   topics: string[] // JSON array of topics
+  language: string // ISO 639-1 code, default 'en'
+  title_original: string | null // original non-English title
+  content_original: string | null // original non-English content
 }
 
 // ── Flight (ADS-B tracking) ──

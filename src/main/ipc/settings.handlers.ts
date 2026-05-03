@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { config, reloadConfigFromSettings } from '../utils/config'
 import { remoteServer } from '../services/remote/httpServer'
 import { stopSenseMakingScheduler, startSenseMakingScheduler } from '../services/senseMakingEngine'
+import { testTranslation } from '../services/ingestion/translator'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -99,6 +100,15 @@ export interface AppSettings {
     zaiApiKey: string
     zaiBaseUrl: string
   }
+  // Multi-Language Translation Pipeline
+  translation: {
+    enabled: boolean
+    batchSize: number
+    batchDelayMs: number
+    modelEndpoint: string
+    model: string
+    sourceLanguages: string[]
+  }
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -169,6 +179,14 @@ const DEFAULT_SETTINGS: AppSettings = {
     fredApiKey: '',
     zaiApiKey: '',
     zaiBaseUrl: 'https://api.z.ai/api/coding/paas/v4'
+  },
+  translation: {
+    enabled: false,
+    batchSize: 5,
+    batchDelayMs: 30000,
+    modelEndpoint: '',
+    model: 'qwen2.5:3b',
+    sourceLanguages: ['ar', 'ru', 'zh', 'fa', 'ko', 'es']
   }
 }
 
@@ -266,7 +284,8 @@ export function loadSettings(): AppSettings {
       economic: { ...DEFAULT_SETTINGS.economic, ...parsed.economic },
       notam: { ...DEFAULT_SETTINGS.notam, ...parsed.notam },
       senseMaking: { ...DEFAULT_SETTINGS.senseMaking, ...parsed.senseMaking },
-      apiKeys: { ...DEFAULT_SETTINGS.apiKeys, ...parsed.apiKeys }
+      apiKeys: { ...DEFAULT_SETTINGS.apiKeys, ...parsed.apiKeys },
+      translation: { ...DEFAULT_SETTINGS.translation, ...parsed.translation }
     }
   } catch {
     return { ...DEFAULT_SETTINGS }
@@ -584,6 +603,14 @@ export function registerSettingsHandlers(): void {
       return { ok: false, error: err instanceof Error ? err.message : 'Connection failed' }
     }
   })
+
+  // Test translation pipeline
+  ipcMain.handle(
+    'settings:testTranslation',
+    async (_event, text: string, language: string) => {
+      return await testTranslation(text, language)
+    }
+  )
 
   console.log('[IPC] Settings handlers registered')
 }

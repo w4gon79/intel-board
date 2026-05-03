@@ -8,7 +8,18 @@ function env(key: string, fallback: string = ''): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface AppSettingsLike { ai?: { ollamaBaseUrl?: string }; apiKeys?: Record<string, any> }
+export interface AppSettingsLike {
+  ai?: { ollamaBaseUrl?: string }
+  apiKeys?: Record<string, any>
+  translation?: {
+    enabled?: boolean
+    batchSize?: number
+    batchDelayMs?: number
+    modelEndpoint?: string
+    model?: string
+    sourceLanguages?: string[]
+  }
+}
 
 export const config = {
   /** News API key — https://newsapi.org */
@@ -46,6 +57,16 @@ export const config = {
     adsbMs: 60 * 1000, // 60 sec
     aisMs: 60 * 1000, // 1 min
     weatherMs: 15 * 60 * 1000 // 15 min
+  },
+
+  /** Multi-language translation pipeline settings */
+  translation: {
+    enabled: false as boolean,
+    batchSize: 5 as number,
+    batchDelayMs: 30000 as number,
+    modelEndpoint: '' as string,  // empty = use Ollama default
+    model: 'qwen2.5:3b' as string,
+    sourceLanguages: ['ar', 'ru', 'zh', 'fa', 'ko', 'es'] as string[]
   }
 }
 
@@ -66,5 +87,13 @@ export function reloadConfigFromSettings(settings: AppSettingsLike): void {
   }
   if (settings.ai?.ollamaBaseUrl) {
     config.ollamaBaseUrl = settings.ai.ollamaBaseUrl
+  }
+  if (settings.translation) {
+    if (settings.translation.enabled !== undefined) config.translation.enabled = settings.translation.enabled
+    if (settings.translation.batchSize !== undefined) config.translation.batchSize = settings.translation.batchSize
+    if (settings.translation.batchDelayMs !== undefined) config.translation.batchDelayMs = settings.translation.batchDelayMs
+    if (settings.translation.modelEndpoint !== undefined) config.translation.modelEndpoint = settings.translation.modelEndpoint
+    if (settings.translation.model !== undefined) config.translation.model = settings.translation.model
+    if (settings.translation.sourceLanguages !== undefined) config.translation.sourceLanguages = settings.translation.sourceLanguages
   }
 }

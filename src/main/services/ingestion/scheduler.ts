@@ -6,8 +6,9 @@
  */
 
 import { config } from '../../utils/config'
-import { fetchNewsApiHeadlines, fetchGdeltArticles, type IngestionResult } from './news'
+import { fetchNewsApiHeadlines, fetchGdeltArticles, fetchNonEnglishSources, type IngestionResult } from './news'
 import { processArticles, bootstrapDedupCache, getProcessorStats } from './processor'
+import { translatePendingArticles } from './translator'
 
 // ── Scheduler state ──
 
@@ -118,9 +119,32 @@ async function runIngestionCycle(customQuery?: string): Promise<IngestionResult>
     console.error('[scheduler] GDELT fetch error:', err)
   }
 
+  // Fetch from non-English sources if translation is enabled
+  if (config.translation?.enabled) {
+    try {
+      const nonEnArticles = await fetchNonEnglishSources(config.translation.sourceLanguages)
+      allRawArticles.push(...nonEnArticles)
+    } catch (err) {
+      console.error('[scheduler] Non-English sources fetch error:', err)
+    }
+  }
+
   // Process all articles (async: includes ChromaDB embedding)
   const result = await processArticles(allRawArticles)
   result.elapsedMs = Date.now() - cycleStart
+
+  // Translate pending non-English articles (non-blocking)
+  if (config.translation?.enabled) {
+    translatePendingArticles().then((tResult) => {
+      if (tResult.translated > 0 || tResult.failed > 0) {
+        console.log(
+          `[scheduler] Translation: ${tResult.translated} translated, ${tResult.failed} failed`
+        )
+      }
+    }).catch((err) => {
+      console.warn('[scheduler] Translation worker error (non-critical):', err)
+    })
+  }
 
   // Update stats
   totalRuns++

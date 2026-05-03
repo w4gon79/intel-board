@@ -60,7 +60,10 @@ function hydrateArticle(row: DbRow): Article {
     sentiment: (row.sentiment as number) ?? null,
     entities: fromJson<string>(row.entities as string | null),
     region: (row.region as string) ?? null,
-    topics: fromJson<string>(row.topics as string | null)
+    topics: fromJson<string>(row.topics as string | null),
+    language: (row.language as string) ?? 'en',
+    title_original: (row.title_original as string) ?? null,
+    content_original: (row.content_original as string) ?? null
   }
 }
 
@@ -114,8 +117,8 @@ let stmtArticleCount: Database.Statement | null = null
 function prepareArticleStatements(db: Database.Database): void {
   if (stmtArticleInsert) return
   stmtArticleInsert = db.prepare(`
-    INSERT INTO articles (id, source, title, content, url, published_at, ingested_at, sentiment, entities, region, topics)
-    VALUES (@id, @source, @title, @content, @url, @published_at, @ingested_at, @sentiment, @entities, @region, @topics)
+    INSERT INTO articles (id, source, title, content, url, published_at, ingested_at, sentiment, entities, region, topics, language, title_original, content_original)
+    VALUES (@id, @source, @title, @content, @url, @published_at, @ingested_at, @sentiment, @entities, @region, @topics, @language, @title_original, @content_original)
   `)
   stmtArticleGetById = db.prepare('SELECT * FROM articles WHERE id = ?')
   stmtArticleGetAll = db.prepare(
@@ -151,7 +154,10 @@ export function insertArticle(data: InsertArticle): Article {
     sentiment: data.sentiment,
     entities: toJson(data.entities),
     region: data.region,
-    topics: toJson(data.topics)
+    topics: toJson(data.topics),
+    language: data.language ?? 'en',
+    title_original: data.title_original ?? null,
+    content_original: data.content_original ?? null
   })
 
   return { ...data, id, ingested_at } as Article
@@ -204,6 +210,40 @@ export function getArticleCount(): number {
   prepareArticleStatements(db)
   const result = stmtArticleCount!.get() as DbRow
   return result.count as number
+}
+
+/**
+ * Get articles that need translation (language != 'en' and title_original is NULL,
+ * meaning translation hasn't happened yet).
+ */
+export function getAllPendingTranslations(limit = 5): Article[] {
+  const db = getDatabase()
+  const rows = db.prepare(
+    "SELECT * FROM articles WHERE language != 'en' AND title_original IS NULL ORDER BY ingested_at ASC LIMIT ?"
+  ).all(limit) as DbRow[]
+  return rows.map(hydrateArticle)
+}
+
+/**
+ * Update an article with translated text, preserving the original.
+ */
+export function updateArticleTranslation(
+  id: string,
+  data: { title: string | null; content: string | null; title_original: string | null; content_original: string | null }
+): boolean {
+  const db = getDatabase()
+  const result = db.prepare(`
+    UPDATE articles
+    SET title = @title, content = @content, title_original = @title_original, content_original = @content_original
+    WHERE id = @id
+  `).run({
+    id,
+    title: data.title,
+    content: data.content,
+    title_original: data.title_original,
+    content_original: data.content_original
+  })
+  return result.changes > 0
 }
 
 // ════════════════════════════════════════════
