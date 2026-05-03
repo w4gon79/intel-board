@@ -366,7 +366,6 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
           <Section title="Translation Pipeline">
             <TranslationPanel
               settings={settings.translation}
-              aiBaseUrl={settings.ai.ollamaBaseUrl}
               onUpdate={(patch) =>
                 setSettings({
                   ...settings,

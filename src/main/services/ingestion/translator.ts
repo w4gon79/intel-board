@@ -11,12 +11,52 @@ import { getAllPendingTranslations, updateArticleTranslation } from '../storage/
 
 // ── Types ──
 
+/** Resolve the primary AI provider settings for translation fallback */
+function loadAISettings(): { baseUrl: string; apiKey: string; model: string; useOllamaApi: boolean } {
+  try {
+    const settingsPath = require('path').join(
+      require('electron').app.getPath('userData'), 'settings.json'
+    )
+    const fs = require('fs')
+    if (!fs.existsSync(settingsPath)) return { baseUrl: '', apiKey: '', model: '', useOllamaApi: false }
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'))
+    const ai = settings.ai || {}
+
+    switch (ai.primaryProvider) {
+      case 'local':
+        return {
+          baseUrl: ai.ollamaBaseUrl || 'http://localhost:11434',
+          apiKey: '',
+          model: ai.primaryLocalModel || 'llama3.1:8b',
+          useOllamaApi: true
+        }
+      case 'ollama-cloud':
+        return {
+          baseUrl: ai.ollamaBaseUrl || 'http://localhost:11434',
+          apiKey: '',
+          model: ai.primaryOllamaModel || 'deepseek-v4-pro:cloud',
+          useOllamaApi: true
+        }
+      case 'openai-compatible':
+      default:
+        return {
+          baseUrl: ai.primaryOpenaiBaseUrl || '',
+          apiKey: ai.primaryOpenaiApiKey || '',
+          model: ai.primaryOpenaiModel || 'glm-5.1',
+          useOllamaApi: false
+        }
+    }
+  } catch {
+    return { baseUrl: '', apiKey: '', model: '', useOllamaApi: false }
+  }
+}
+
 export interface TranslationConfig {
   enabled: boolean
   batchSize: number       // default: 5
   batchDelayMs: number    // default: 30000
   modelEndpoint: string   // empty = use existing cloud API config
-  model: string           // e.g., 'qwen2.5:3b' or 'glm-5.1'
+  model: string           // e.g., 'gemma3:4b' or 'qwen3:4b/no_think' (append /no_think to suppress reasoning)
   sourceLanguages: string[] // e.g., ['ar', 'ru', 'zh', 'fa', 'ko', 'es']
 }
 
@@ -44,34 +84,91 @@ let translator429Until = 0
 /**
  * Translate a single text string from the given language to English.
  * Uses the OpenAI chat completions format (compatible with Ollama and cloud APIs).
+ * When modelEndpoint is empty, falls back to the main AI provider settings.
  */
 async function translateText(text: string, language: string): Promise<string | null> {
   if (!text || text.trim().length === 0) return text
 
   const langLabel = LANGUAGE_LABELS[language] || language
 
-  // Determine endpoint: use configured translator endpoint, or fall back to Ollama
-  const endpoint = config.translation.modelEndpoint || 'http://localhost:11434/v1/chat/completions'
+  // Determine endpoint: use configured translator endpoint, cloud API, or fall back to Ollama
+  let endpoint: string
+  let headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  let useOllamaApi = false
+  let modelName: string
+
+  if (config.translation.modelEndpoint) {
+    // Explicit local/custom endpoint (e.g., Ollama)
+    endpoint = config.translation.modelEndpoint
+    modelName = config.translation.model || 'glm-5.1'
+  } else {
+    // Use the main AI provider settings (same as brief generation)
+    const aiSettings = loadAISettings()
+    if (aiSettings.baseUrl) {
+      if (aiSettings.useOllamaApi) {
+        // Local Ollama or ollama-cloud proxy
+        endpoint = `${aiSettings.baseUrl.replace(/\/$/, '')}/api/chat`
+        useOllamaApi = true
+      } else if (aiSettings.apiKey) {
+        // Cloud API (OpenAI-compatible, ZAI, etc.)
+        endpoint = `${aiSettings.baseUrl.replace(/\/$/, '')}/chat/completions`
+        headers['Authorization'] = `Bearer ${aiSettings.apiKey}`
+      } else {
+        // Local without auth
+        endpoint = `${aiSettings.baseUrl.replace(/\/$/, '')}/v1/chat/completions`
+      }
+      // If no translation model specified, use the main AI model
+      modelName = config.translation.model || aiSettings.model
+    } else {
+      // Last resort: local Ollama default
+      endpoint = 'http://localhost:11434/api/chat'
+      useOllamaApi = true
+      modelName = config.translation.model || 'llama3.1:8b'
+    }
+  }
+
+  // Strip /no_think suffix for API call
+  const suppressThinking = modelName.endsWith('/no_think') || modelName.startsWith('qwen3')
+  modelName = modelName.replace('/no_think', '')
 
   const systemPrompt =
     `Translate the following news article from ${langLabel} to English. ` +
     `Preserve the factual content, tone, and key entities (names, places, organizations). ` +
-    `Output only the translation, no explanations or quotes.`
+    `Output only the translation, no explanations or quotes.` +
+    (suppressThinking ? ' /no_think' : '')
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: text }
+  ]
+
+  console.log(`[translator] Using ${useOllamaApi ? 'Ollama' : 'OpenAI'} API, model: ${modelName}, endpoint: ${endpoint}`)
 
   try {
-    const resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: config.translation.model || 'qwen2.5:3b',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text }
-        ],
+    let body: string
+    if (useOllamaApi) {
+      // Ollama native API format
+      body = JSON.stringify({
+        model: modelName,
+        messages,
+        options: { temperature: 0.1 },
+        stream: false
+      })
+    } else {
+      // OpenAI-compatible API format
+      body = JSON.stringify({
+        model: modelName,
+        messages,
         temperature: 0.1,
         stream: false
-      }),
-      signal: AbortSignal.timeout(30_000)
+      })
+    }
+
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body,
+      signal: AbortSignal.timeout(120_000) // 2 min timeout for model loading + reasoning
     })
 
     if (!resp.ok) {
@@ -85,13 +182,20 @@ async function translateText(text: string, language: string): Promise<string | n
       return null
     }
 
-    const data = await resp.json() as {
-      choices?: Array<{ message?: { content?: string } }>
+    const data = await resp.json() as Record<string, unknown>
+
+    // Handle both OpenAI and Ollama response formats
+    let translated: string | undefined
+    if (useOllamaApi && typeof data.message === 'object' && data.message !== null) {
+      // Ollama /api/chat format: { message: { content: "..." } }
+      translated = ((data.message as Record<string, unknown>)?.content as string)?.trim()
+    } else if (Array.isArray(data.choices)) {
+      // OpenAI format: { choices: [{ message: { content: "..." } }] }
+      translated = (data.choices as Array<{ message?: { content?: string } }>)?.[0]?.message?.content?.trim()
     }
 
-    const translated = data.choices?.[0]?.message?.content?.trim()
     if (!translated) {
-      console.warn('[translator] Empty translation response')
+      console.warn('[translator] Empty translation response. useOllamaApi:', useOllamaApi, 'data:', JSON.stringify(data).substring(0, 500))
       return null
     }
 

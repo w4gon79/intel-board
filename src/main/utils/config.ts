@@ -64,8 +64,8 @@ export const config = {
     enabled: false as boolean,
     batchSize: 5 as number,
     batchDelayMs: 30000 as number,
-    modelEndpoint: '' as string,  // empty = use Ollama default
-    model: 'qwen2.5:3b' as string,
+    modelEndpoint: '' as string,  // empty = use cloud API (same as brief generation)
+    model: 'glm-5.1' as string,  // cloud default; users can set local model like gemma3:4b
     sourceLanguages: ['ar', 'ru', 'zh', 'fa', 'ko', 'es'] as string[]
   }
 }

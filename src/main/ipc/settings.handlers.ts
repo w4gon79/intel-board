@@ -608,7 +608,9 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle(
     'settings:testTranslation',
     async (_event, text: string, language: string) => {
-      return await testTranslation(text, language)
+      const result = await testTranslation(text, language)
+      // Map to renderer's expected shape: { ok, translation, error }
+      return { ok: result.success, translation: result.translation, error: result.error }
     }
   )
 

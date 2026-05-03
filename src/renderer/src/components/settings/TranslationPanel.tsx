@@ -15,11 +15,10 @@ const LANGUAGES = [
 
 interface TranslationPanelProps {
   settings: AppSettings['translation']
-  aiBaseUrl: string
   onUpdate: (patch: Partial<AppSettings['translation']>) => void
 }
 
-export function TranslationPanel({ settings, aiBaseUrl, onUpdate }: TranslationPanelProps): React.JSX.Element {
+export function TranslationPanel({ settings, onUpdate }: TranslationPanelProps): React.JSX.Element {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; translation?: string; error?: string } | null>(null)
   const [testLang, setTestLang] = useState('ar')
@@ -113,11 +112,28 @@ export function TranslationPanel({ settings, aiBaseUrl, onUpdate }: TranslationP
               type="text"
               value={settings.model}
               onChange={(e) => onUpdate({ model: e.target.value })}
-              placeholder="e.g., qwen2.5:3b or llama3.1:8b"
+              placeholder="e.g., glm-5.1 or qwen3:4b (leave empty for default)"
               className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-[11px] text-zinc-200 focus:border-indigo-500 focus:outline-none"
             />
             <p className="text-[10px] text-zinc-600 mt-1">
-              Uses Ollama at {aiBaseUrl || 'localhost:11434'}. Any model you've pulled will work.
+              Leave empty to use the model from your main AI settings. Set a model name (e.g., qwen3:4b) to override for translation only.
+            </p>
+          </div>
+
+          {/* Custom endpoint */}
+          <div className="rounded-md border border-zinc-800 bg-zinc-900/50 p-3">
+            <label className="block text-[10px] font-medium text-zinc-500 uppercase tracking-wider mb-1.5">
+              Custom Endpoint
+            </label>
+            <input
+              type="text"
+              value={settings.modelEndpoint}
+              onChange={(e) => onUpdate({ modelEndpoint: e.target.value })}
+              placeholder="e.g., http://localhost:11434/v1/chat/completions"
+              className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-[11px] text-zinc-200 focus:border-indigo-500 focus:outline-none"
+            />
+            <p className="text-[10px] text-zinc-600 mt-1">
+              Leave empty to use your main AI settings (cloud or local). Set this only if you want translation to use a different endpoint than brief generation.
             </p>
           </div>
 
