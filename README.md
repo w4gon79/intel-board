@@ -145,6 +145,8 @@ npm run build:linux    # Linux (AppImage + .deb)
 
 The installer appears in `dist/`. Double click to install like any desktop app.
 
+> **Note:** First build takes 2-5 minutes because it downloads and packages the Electron runtime (~150MB). Subsequent builds are much faster.
+
 ### Keeping Updated
 
 ```bash
