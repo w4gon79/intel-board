@@ -169,6 +169,17 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
             />
           </Section>
 
+          {/* ── Notification Channels ── */}
+          <NotificationChannelsSection
+            channels={settings.notificationChannels}
+            onUpdate={(patch) =>
+              setSettings({
+                ...settings,
+                notificationChannels: { ...settings.notificationChannels, ...patch }
+              })
+            }
+          />
+
           {/* ── Data Retention ── */}
           <Section title="Data Retention">
             <label className="block text-xs text-zinc-500 mb-1.5">Keep data for</label>
@@ -558,6 +569,323 @@ function SourceToggle({
           <span className="text-[10px] text-zinc-600">({seconds}s)</span>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Notification Channels Section ────────────────────────────────────────
+
+type NotificationChannels = AppSettings['notificationChannels']
+
+function NotificationChannelsSection({
+  channels,
+  onUpdate
+}: {
+  channels: NotificationChannels
+  onUpdate: (patch: Partial<NotificationChannels>) => void
+}): React.JSX.Element {
+  const [activeTab, setActiveTab] = useState<'telegram' | 'webhook' | 'email'>('telegram')
+  const [testResult, setTestResult] = useState<Record<string, { ok: boolean; error?: string }> | null>(null)
+  const [testing, setTesting] = useState(false)
+
+  async function handleTest(): Promise<void> {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const result = await window.api.notifications.sendTest()
+      setTestResult(result.results)
+    } catch (err) {
+      setTestResult({ global: { ok: false, error: err instanceof Error ? err.message : 'Test failed' } })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  const tabs: { key: 'telegram' | 'webhook' | 'email'; label: string; icon: string }[] = [
+    { key: 'telegram', label: 'Telegram', icon: '📨' },
+    { key: 'webhook', label: 'Webhook', icon: '🔗' },
+    { key: 'email', label: 'Email', icon: '📧' }
+  ]
+
+  return (
+    <div>
+      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+        Notification Channels
+      </h3>
+      <div className="rounded-md border border-zinc-800 bg-zinc-900/50">
+        {/* Tab bar */}
+        <div className="flex border-b border-zinc-800">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex-1 px-2 py-2 text-[10px] font-medium transition-colors ${
+                activeTab === tab.key
+                  ? 'text-indigo-400 border-b-2 border-indigo-400 bg-zinc-900'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div className="p-3 space-y-2">
+          {activeTab === 'telegram' && (
+            <TelegramTab
+              config={channels.telegram}
+              onUpdate={(patch) => onUpdate({ telegram: { ...channels.telegram, ...patch } })}
+            />
+          )}
+          {activeTab === 'webhook' && (
+            <WebhookTab
+              config={channels.webhook}
+              onUpdate={(patch) => onUpdate({ webhook: { ...channels.webhook, ...patch } })}
+            />
+          )}
+          {activeTab === 'email' && (
+            <EmailTab
+              config={channels.email}
+              onUpdate={(patch) => onUpdate({ email: { ...channels.email, ...patch } })}
+            />
+          )}
+
+          {/* Test button */}
+          <div className="pt-2 border-t border-zinc-800">
+            <button
+              type="button"
+              onClick={handleTest}
+              disabled={testing}
+              className="w-full rounded-md bg-zinc-800 px-3 py-1.5 text-[10px] font-medium text-zinc-300 transition-colors hover:bg-zinc-700 disabled:opacity-50"
+            >
+              {testing ? 'Testing…' : '▶ Test All Enabled Channels'}
+            </button>
+            {testResult && (
+              <div className="mt-2 space-y-1">
+                {Object.entries(testResult).map(([channel, result]) => (
+                  <div
+                    key={channel}
+                    className={`text-[10px] px-2 py-1 rounded ${
+                      result.ok ? 'text-emerald-400 bg-emerald-950/30' : 'text-red-400 bg-red-950/30'
+                    }`}
+                  >
+                    {result.ok ? '✓' : '✗'} {channel}: {result.ok ? 'OK' : result.error}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TelegramTab({
+  config,
+  onUpdate
+}: {
+  config: NotificationChannels['telegram']
+  onUpdate: (patch: Partial<NotificationChannels['telegram']>) => void
+}): React.JSX.Element {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-zinc-300">Enable Telegram</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={config.enabled}
+          onClick={() => onUpdate({ enabled: !config.enabled })}
+          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+            config.enabled ? 'bg-emerald-600' : 'bg-zinc-700'
+          }`}
+        >
+          <span
+            className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+              config.enabled ? 'translate-x-4' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
+      <InputField
+        label="Bot Token"
+        value={config.botToken}
+        onChange={(v) => onUpdate({ botToken: v })}
+        placeholder="123456:ABC-DEF..."
+        masked
+      />
+      <InputField
+        label="Chat ID"
+        value={config.chatId}
+        onChange={(v) => onUpdate({ chatId: v })}
+        placeholder="-1001234567890"
+      />
+    </div>
+  )
+}
+
+function WebhookTab({
+  config,
+  onUpdate
+}: {
+  config: NotificationChannels['webhook']
+  onUpdate: (patch: Partial<NotificationChannels['webhook']>) => void
+}): React.JSX.Element {
+  const [headerKey, setHeaderKey] = useState('')
+  const [headerVal, setHeaderVal] = useState('')
+
+  function addHeader(): void {
+    if (!headerKey.trim()) return
+    onUpdate({ headers: { ...config.headers, [headerKey.trim()]: headerVal.trim() } })
+    setHeaderKey('')
+    setHeaderVal('')
+  }
+
+  function removeHeader(key: string): void {
+    const next = { ...config.headers }
+    delete next[key]
+    onUpdate({ headers: next })
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-zinc-300">Enable Webhook</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={config.enabled}
+          onClick={() => onUpdate({ enabled: !config.enabled })}
+          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+            config.enabled ? 'bg-emerald-600' : 'bg-zinc-700'
+          }`}
+        >
+          <span
+            className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+              config.enabled ? 'translate-x-4' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
+      <InputField
+        label="URL"
+        value={config.url}
+        onChange={(v) => onUpdate({ url: v })}
+        placeholder="https://hooks.example.com/alert"
+      />
+      {/* Custom headers */}
+      <div>
+        <label className="block text-[10px] text-zinc-500 mb-1">Custom Headers</label>
+        {Object.entries(config.headers).map(([key, val]) => (
+          <div key={key} className="flex items-center gap-1 mb-1">
+            <span className="text-[10px] text-zinc-400 bg-zinc-800 rounded px-1.5 py-0.5 truncate max-w-[80px]">{key}</span>
+            <span className="text-[10px] text-zinc-500 truncate">= {val || '""'}</span>
+            <button
+              type="button"
+              onClick={() => removeHeader(key)}
+              className="text-[10px] text-red-400 hover:text-red-300 ml-auto shrink-0"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <div className="flex items-center gap-1 mt-1">
+          <input
+            type="text"
+            value={headerKey}
+            onChange={(e) => setHeaderKey(e.target.value)}
+            placeholder="Key"
+            className="w-16 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-1 text-[10px] text-zinc-300 focus:outline-none"
+          />
+          <input
+            type="text"
+            value={headerVal}
+            onChange={(e) => setHeaderVal(e.target.value)}
+            placeholder="Value"
+            className="flex-1 rounded border border-zinc-700 bg-zinc-800 px-1.5 py-1 text-[10px] text-zinc-300 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={addHeader}
+            className="text-[10px] text-indigo-400 hover:text-indigo-300 shrink-0"
+          >
+            + Add
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EmailTab({
+  config,
+  onUpdate
+}: {
+  config: NotificationChannels['email']
+  onUpdate: (patch: Partial<NotificationChannels['email']>) => void
+}): React.JSX.Element {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-zinc-300">Enable Email</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={config.enabled}
+          onClick={() => onUpdate({ enabled: !config.enabled })}
+          className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
+            config.enabled ? 'bg-emerald-600' : 'bg-zinc-700'
+          }`}
+        >
+          <span
+            className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+              config.enabled ? 'translate-x-4' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
+      <InputField label="SMTP Host" value={config.host} onChange={(v) => onUpdate({ host: v })} placeholder="smtp.gmail.com" />
+      <div className="flex gap-2">
+        <div className="w-20">
+          <InputField label="Port" value={String(config.port)} onChange={(v) => onUpdate({ port: Number(v) || 587 })} placeholder="587" />
+        </div>
+        <div className="flex-1">
+          <InputField label="Username" value={config.user} onChange={(v) => onUpdate({ user: v })} placeholder="user@example.com" />
+        </div>
+      </div>
+      <InputField label="Password" value={config.password} onChange={(v) => onUpdate({ password: v })} placeholder="••••••••" masked />
+      <InputField label="From" value={config.from} onChange={(v) => onUpdate({ from: v })} placeholder="alerts@intelboard.local" />
+      <InputField label="To" value={config.to} onChange={(v) => onUpdate({ to: v })} placeholder="you@example.com" />
+    </div>
+  )
+}
+
+function InputField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  masked
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  masked?: boolean
+}): React.JSX.Element {
+  return (
+    <div>
+      <label className="block text-[10px] text-zinc-500 mb-0.5">{label}</label>
+      <input
+        type={masked ? 'password' : 'text'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-[10px] text-zinc-300 focus:outline-none focus:border-indigo-500"
+      />
     </div>
   )
 }

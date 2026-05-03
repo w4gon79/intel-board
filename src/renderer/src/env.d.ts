@@ -262,6 +262,15 @@ interface Window {
       delete: (id: string) => Promise<unknown>
       toggle: (id: string) => Promise<unknown>
     }
+
+    // ── Notifications ──
+    notifications: {
+      sendTest: () => Promise<{
+        success: boolean
+        results: Record<string, { ok: boolean; error?: string }>
+      }>
+      status: () => Promise<Record<string, { enabled: boolean; configured: boolean }>>
+    }
   }
 }
 
@@ -343,6 +352,27 @@ declare global {
       modelEndpoint: string
       model: string
       sourceLanguages: string[]
+    }
+    notificationChannels: {
+      telegram: {
+        enabled: boolean
+        botToken: string
+        chatId: string
+      }
+      webhook: {
+        enabled: boolean
+        url: string
+        headers: Record<string, string>
+      }
+      email: {
+        enabled: boolean
+        host: string
+        port: number
+        user: string
+        password: string
+        from: string
+        to: string
+      }
     }
   }
 

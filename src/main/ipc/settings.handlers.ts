@@ -109,6 +109,28 @@ export interface AppSettings {
     model: string
     sourceLanguages: string[]
   }
+  // Notification Channels (Telegram, Webhook, Email)
+  notificationChannels: {
+    telegram: {
+      enabled: boolean
+      botToken: string
+      chatId: string
+    }
+    webhook: {
+      enabled: boolean
+      url: string
+      headers: Record<string, string>
+    }
+    email: {
+      enabled: boolean
+      host: string
+      port: number
+      user: string
+      password: string
+      from: string
+      to: string
+    }
+  }
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -187,6 +209,27 @@ const DEFAULT_SETTINGS: AppSettings = {
     modelEndpoint: '',
     model: 'qwen2.5:3b',
     sourceLanguages: ['ar', 'ru', 'zh', 'fa', 'ko', 'es']
+  },
+  notificationChannels: {
+    telegram: {
+      enabled: false,
+      botToken: '',
+      chatId: ''
+    },
+    webhook: {
+      enabled: false,
+      url: '',
+      headers: {}
+    },
+    email: {
+      enabled: false,
+      host: '',
+      port: 587,
+      user: '',
+      password: '',
+      from: '',
+      to: ''
+    }
   }
 }
 
@@ -285,7 +328,16 @@ export function loadSettings(): AppSettings {
       notam: { ...DEFAULT_SETTINGS.notam, ...parsed.notam },
       senseMaking: { ...DEFAULT_SETTINGS.senseMaking, ...parsed.senseMaking },
       apiKeys: { ...DEFAULT_SETTINGS.apiKeys, ...parsed.apiKeys },
-      translation: { ...DEFAULT_SETTINGS.translation, ...parsed.translation }
+      translation: { ...DEFAULT_SETTINGS.translation, ...parsed.translation },
+      notificationChannels: {
+        telegram: { ...DEFAULT_SETTINGS.notificationChannels.telegram, ...parsed.notificationChannels?.telegram },
+        webhook: {
+          ...DEFAULT_SETTINGS.notificationChannels.webhook,
+          ...(parsed.notificationChannels?.webhook ?? {}),
+          headers: parsed.notificationChannels?.webhook?.headers ?? DEFAULT_SETTINGS.notificationChannels.webhook.headers
+        },
+        email: { ...DEFAULT_SETTINGS.notificationChannels.email, ...parsed.notificationChannels?.email }
+      }
     }
   } catch {
     return { ...DEFAULT_SETTINGS }
@@ -318,6 +370,17 @@ function maskApiKeys(settings: AppSettings): AppSettings {
       zaiApiKey: settings.apiKeys.zaiApiKey ? MASK : '',
       // zaiBaseUrl is NOT secret — show it as-is
       zaiBaseUrl: settings.apiKeys.zaiBaseUrl
+    },
+    notificationChannels: {
+      telegram: {
+        ...settings.notificationChannels.telegram,
+        botToken: settings.notificationChannels.telegram.botToken ? MASK : ''
+      },
+      webhook: settings.notificationChannels.webhook,
+      email: {
+        ...settings.notificationChannels.email,
+        password: settings.notificationChannels.email.password ? MASK : ''
+      }
     }
   }
 }
@@ -412,7 +475,26 @@ export function registerSettingsHandlers(): void {
       // Preserve unmasked API keys when the renderer sent the mask placeholder
       const merged: AppSettings = {
         ...settings,
-        apiKeys: mergeApiKeys(settings.apiKeys, previous.apiKeys)
+        apiKeys: mergeApiKeys(settings.apiKeys, previous.apiKeys),
+        // Preserve unmasked notification secrets (botToken, password)
+        notificationChannels: {
+          telegram: {
+            ...settings.notificationChannels.telegram,
+            botToken: isMasked(settings.notificationChannels?.telegram?.botToken ?? '')
+              ? previous.notificationChannels.telegram.botToken
+              : (settings.notificationChannels?.telegram?.botToken ?? '')
+          },
+          webhook: {
+            ...settings.notificationChannels.webhook,
+            headers: settings.notificationChannels?.webhook?.headers ?? previous.notificationChannels.webhook.headers
+          },
+          email: {
+            ...settings.notificationChannels.email,
+            password: isMasked(settings.notificationChannels?.email?.password ?? '')
+              ? previous.notificationChannels.email.password
+              : (settings.notificationChannels?.email?.password ?? '')
+          }
+        }
       }
       saveSettings(merged)
       // Reload runtime config so services pick up new keys immediately

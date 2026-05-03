@@ -8,6 +8,7 @@
 import { randomUUID } from 'crypto'
 import { getDatabase } from '../storage/database'
 import { REGIONS } from '../../../shared/regions'
+import { sendAlert } from '../notifications/notificationService'
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -366,6 +367,24 @@ function fireRule(
   console.log(
     `[RuleEngine] Fired rule "${rule.name}" → intel item "${title}" in ${regionName}`
   )
+
+  // Fire-and-forget notification to all enabled channels
+  sendAlert({
+    ruleName: rule.name,
+    severity: rule.severity,
+    label: rule.label,
+    entityType: rule.entity_type,
+    regionName,
+    matchCount,
+    entity: matchedEntity ? {
+      name: matchedEntity.name ?? matchedEntity.ship_name ?? matchedEntity.callsign,
+      type: matchedEntity.type ?? matchedEntity.ship_type,
+      lat: getEntityLat(matchedEntity) ?? null,
+      lon: getEntityLon(matchedEntity) ?? null
+    } : undefined,
+    intelItemId: id,
+    timestamp: now
+  }).catch((err) => console.error('[RuleEngine] Notification failed:', err))
 }
 
 // ── Main Evaluation Function ─────────────────────────────────

@@ -329,6 +329,14 @@ const api = {
     toggle: (id: string) => ipcRenderer.invoke('alert-rules:toggle', id)
   },
 
+  // ── Notifications ──
+  notifications: {
+    /** Send a test notification to all enabled channels */
+    sendTest: () => ipcRenderer.invoke('notifications:sendTest'),
+    /** Get which notification channels are configured and enabled */
+    status: () => ipcRenderer.invoke('notifications:status')
+  },
+
   // ── Logger ──
   logger: {
     /** Read the most recent lines from the main-process log file */
