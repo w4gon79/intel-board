@@ -32,6 +32,7 @@ Intel Board is a desktop application that aggregates open-source intelligence fr
 - **Carrier Strike Group tracking** — Live CSG/ARG positions with vessel breakdowns, operating areas, and staleness indicators
 - **Intel Feed** — Tiered feed: active predictions, overdue items, analyzed results. Color-coded by type and urgency.
 - **Alert Rules** — User-defined rules for automatic notifications on keywords, regions, or event types
+- **Push Notifications** — Real-time alerts via Telegram bot, webhook, or email when alert rules fire or built-in detections trigger (tactical events, economic anomalies, sense-making analysis)
 
 ### AI Features
 - **RAG-grounded chat** — Ask questions about current events, get answers with clickable source citations
@@ -39,6 +40,7 @@ Intel Board is a desktop application that aggregates open-source intelligence fr
 - **World context** — Current world leaders, roles, and geopolitical context injected into AI prompts for accuracy
 - **Connection discovery** — AI identifies links between intel items from different sources
 - **Foreign language translation** — AI-powered translation of non-English articles. Language detection, full article translation, and bilingual storage (original + English) so translated content is searchable alongside English intel.
+- **Push Notifications** — Telegram, webhook, and email notifications for custom alert rules and built-in detections (tactical, economic, sense-making). Rate-limited with configurable toggles.
 - **Source verification** — Every AI claim links back to its source document
 
 ## Prerequisites
@@ -101,9 +103,21 @@ Open Settings → **API Keys** tab. Each key has a signup link and a Test button
 | OpenSky Username + Password | Recommended | Yes (4K req/day) | Live aircraft tracking via opensky-network.org |
 | AISStream API Key | Recommended | Yes | Real-time ship tracking via aisstream.io |
 | GFW API Token | Optional | Yes (non-commercial) | Vessel presence data from globalfishingwatch.org |
-| FRED API Key | Optional | Yes (120 req/min) | Economic indicators from fred.stlouisfed.org |
+| FRED API Key | Optional | Yes (120 req/min) | Bond yields and interest rates from fred.stlouisfed.org |
+| Telegram Bot Token | Optional | Free | Push notifications via Telegram |
+| SMTP Credentials | Optional | Varies | Email notifications for alert triggers |
 
 Services without API keys (GDELT, Google News RSS, TheAirTraffic.com) work out of the box.
+
+### Notification Channels
+
+Open Settings → **Notifications** tab:
+
+- **Telegram** — Bot token + chat ID for instant message alerts
+- **Webhook** — Generic HTTP POST to any endpoint (Slack, Discord, custom)
+- **Email** — SMTP configuration for email alerts
+
+Each channel has a Test button. All enabled channels fire in parallel when alerts trigger. Built-in detection notifications (tactical, economic, sense-making) can be toggled independently.
 
 ### AI Model Configuration
 
@@ -188,7 +202,12 @@ src/
         twzScraper.ts            # The War Zone defense news scraper
         aisMatcher.ts            # AIS vessel matching (disabled for CSG)
       economic/
-        economicService.ts       # Commodity/currency/bond tracking
+        economicService.ts       # Commodity/currency/interest rate tracking (Yahoo Finance + FRED)
+      notifications/
+        notificationService.ts  # Notification dispatch (Telegram, webhook, email)
+        telegramSender.ts       # Telegram Bot API
+        webhookSender.ts        # Generic HTTP webhook
+        emailSender.ts          # SMTP via nodemailer
       storage/
         database.ts              # SQLite setup, migrations
         dbService.ts             # Query functions for all domains
@@ -197,8 +216,8 @@ src/
     components/
       layout/                    # AppShell, header, feed panel, AI strip
       map/                       # SituationMap, layer controls, overlays
-      feed/                      # IntelFeedCard, PredictionCard
-      settings/                  # Settings panels, AI config
+      feed/                       # IntelFeedCard, PredictionCard
+      settings/                  # Settings panels, AI config, notifications, alert rules
       source/                    # Source citation panel
   shared/
     types.ts                     # Shared TypeScript types
@@ -217,7 +236,8 @@ SQLite via `better-sqlite3`. Auto-migrated on startup. Key tables:
 - `articles` — Stored news articles
 - `flights` / `vessels` — Real-time tracking data
 - `alert_rules` — User-defined notification rules
-- `economic_indicators` — Price/yield data
+- `economic_indicators` — Price/yield/interest rate data
+- `social_posts` — Reddit and BlueSky social media posts
 
 All data lives in `data/intel-board.db`.
 
@@ -227,6 +247,7 @@ All data lives in `data/intel-board.db`.
 - **Self-calibrating predictions** — The predictor sees its own accuracy history and adjusts confidence. Categories with <25% accuracy skip predictions entirely. Failure patterns are analyzed and stored.
 - **Layered event detection** — Raw data flows through tactical engine → anomaly detection → sense-making → predictions, each layer building on the last.
 - **CSG data is USNI-only** — Carrier strike group positions come exclusively from USNI/TWZ intel, not AIS (military AIS is unreliable).
+- **Notifications are fire-and-forget** — Notification failures never block alert rule processing or intel item creation. Built-in detection notifications are rate-limited (15-min cooldown per alert key) and skip CONTEXT-tier items to avoid noise.
 
 ## Tech Stack
 
@@ -239,7 +260,8 @@ All data lives in `data/intel-board.db`.
 | AI | Ollama (local) and/or OpenAI-compatible APIs |
 | Vector Search | JSON-stored embeddings + cosine similarity |
 | Scraping | Custom HTTP + AI-powered extraction |
-| Data Sources | GDELT, RSS, Google News, ADS-B, AIS |
+| Notifications | Telegram, webhook, email (nodemailer) |
+| Data Sources | GDELT, RSS, Google News, ADS-B, AIS, FRED, Reddit, BlueSky |
 
 ## Screenshots
 
