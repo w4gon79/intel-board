@@ -14,7 +14,7 @@ Intel Board is a desktop application that aggregates open-source intelligence fr
 - **Multi-source ingestion** — GDELT Global Knowledge Graph, RSS feeds, Google News, custom scrapers
 - **USNI Fleet Tracker** — Automated scraping of US Naval Institute's fleet and carrier strike group tracker
 - **The War Zone scraper** — Defense news from TWZ.com with AI-powered extraction
-- **ADS-B/aircraft tracking** — Real-time military aircraft detection via tar1090/AirNav
+- **ADS-B/aircraft tracking** — Real-time military aircraft detection via OpenSky Network and TheAirTraffic.com (supplemental, no API key required)
 - **AIS vessel tracking** — Maritime traffic monitoring with vessel identification
 - **Economic indicators** — Commodity prices and currency data via Yahoo Finance, bond yields and interest rates via FRED API
 - **Social media monitoring** — Reddit and BlueSky feed tracking with configurable polling
