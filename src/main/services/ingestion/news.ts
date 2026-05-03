@@ -391,10 +391,13 @@ async function fetchRssFeed(source: NonEnglishSource): Promise<RawArticle[]> {
 
     if (!title && !description) continue
 
+    // Strip HTML from description for clean text
+    const cleanContent = description ? stripHtml(description) : null
+
     items.push({
       source: `${source.id}:${source.name}`,
       title: title || null,
-      content: description || null,
+      content: cleanContent,
       url: link || null,
       publishedAt: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
       author: null,
@@ -430,4 +433,23 @@ function decodeXmlEntities(text: string): string {
   map['q' + 'uot'] = String.fromCharCode(34) // "
   map['a' + 'pos'] = String.fromCharCode(39) // '
   return text.replace(/&(amp|lt|gt|quot|apos);/g, (_m, name: string) => map[name] || _m)
+}
+
+/** Strip HTML tags from text, preserving content */
+function stripHtml(html: string): string {
+  // Remove img tags entirely (they're decorative, not content)
+  let text = html.replace(/<img[^>]*>/gi, '')
+  // Replace <br/> and <br> with newlines
+  text = text.replace(/<br\s*\/?>/gi, '\n')
+  // Remove all other HTML tags
+  text = text.replace(/<[^>]+>/g, '')
+  // Decode HTML entities
+  text = text.replace(/&nbsp;/g, ' ')
+  text = text.replace(/&amp;/g, '&')
+  text = text.replace(/&lt;/g, '<')
+  text = text.replace(/&gt;/g, '>')
+  text = text.replace(/&quot;/g, '"')
+  // Clean up whitespace
+  text = text.replace(/\n{3,}/g, '\n\n').trim()
+  return text
 }
