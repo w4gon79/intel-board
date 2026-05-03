@@ -103,7 +103,7 @@ Open Settings → **API Keys** tab. Each key has a signup link and a Test button
 | GFW API Token | Optional | Yes (non-commercial) | Vessel presence data from globalfishingwatch.org |
 | FRED API Key | Optional | Yes (120 req/min) | Economic indicators from fred.stlouisfed.org |
 
-Services without API keys (GDELT, Google News RSS, Open-Meteo weather) work out of the box.
+Services without API keys (GDELT, Google News RSS, TheAirTraffic.com) work out of the box.
 
 ### AI Model Configuration
 
