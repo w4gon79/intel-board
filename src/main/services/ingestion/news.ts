@@ -75,6 +75,9 @@ const NEWS_REGIONS = [
   { country: 'au', label: 'Oceania' }
 ]
 
+// NewsAPI rate-limit tracking
+let newsApi429Until = 0
+
 /**
  * Fetch top headlines from NewsAPI.
  * Rotates through queries and regions to maximise coverage within rate limits.
@@ -82,6 +85,13 @@ const NEWS_REGIONS = [
 export async function fetchNewsApiHeadlines(): Promise<RawArticle[]> {
   if (!config.newsApiKey) {
     console.warn('[ingestion:newsapi] No NEWS_API_KEY configured, skipping')
+    return []
+  }
+
+  // Rate-limit backoff: if we got a 429 recently, skip this cycle
+  if (newsApi429Until && Date.now() < newsApi429Until) {
+    const remaining = Math.ceil((newsApi429Until - Date.now()) / 60_000)
+    console.log(`[ingestion:newsapi] Rate-limited, backing off for ${remaining} more minute(s)`)
     return []
   }
 
@@ -111,6 +121,11 @@ export async function fetchNewsApiHeadlines(): Promise<RawArticle[]> {
 
     if (!resp.ok) {
       const text = await resp.text()
+      if (resp.status === 429) {
+        // Back off for 2 hours on rate limit
+        newsApi429Until = Date.now() + 2 * 60 * 60 * 1000
+        console.warn(`[ingestion:newsapi] Rate limited (429). Backing off for 2 hours. Message: ${text}`)
+      }
       console.error(`[ingestion:newsapi] HTTP ${resp.status}: ${text}`)
       return []
     }
