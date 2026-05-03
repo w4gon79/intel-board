@@ -204,7 +204,10 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps): React.JSX.
                 <div>
                   <span className="text-xs font-medium text-zinc-300">Market Anomaly Detection</span>
                   <p className="text-[10px] text-zinc-500 mt-0.5">
-                    Track commodities, currencies, shipping. Surface only anomalies.
+                    Track commodities, currencies, shipping, interest rates. Surface only anomalies.
+                  </p>
+                  <p className="text-[10px] text-zinc-600 mt-1">
+                    💡 Add a FRED API key below to enable bond yields & interest rate tracking.
                   </p>
                 </div>
                 <button

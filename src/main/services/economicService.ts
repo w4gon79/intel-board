@@ -20,7 +20,7 @@ interface EconomicIndicator {
   id: string
   symbol: string
   name: string
-  category: 'commodity' | 'currency' | 'shipping'
+  category: 'commodity' | 'currency' | 'shipping' | 'interest_rate'
   value: number
   previous_close: number | null
   change_pct_24h: number | null
@@ -36,11 +36,11 @@ interface EconomicIndicator {
 interface IndicatorConfig {
   symbol: string
   name: string
-  category: 'commodity' | 'currency' | 'shipping'
+  category: 'commodity' | 'currency' | 'shipping' | 'interest_rate'
   relatedZones: string[]
   /** Yahoo Finance chart API symbol */
-  yahooSymbol: string
-  /** FRED series ID (optional fallback) */
+  yahooSymbol?: string
+  /** FRED series ID (optional) */
   fredSeries?: string
   /** Daily move threshold for anomaly (fraction, e.g. 0.03 = 3%) */
   dailyThreshold: number
@@ -143,6 +143,52 @@ const INDICATORS: IndicatorConfig[] = [
     yahooSymbol: '^BDI',
     dailyThreshold: 0.05,
     weeklyThreshold: 0.10
+  },
+  // Interest Rates (FRED)
+  {
+    symbol: 'DGS10',
+    name: '10-Year Treasury Yield',
+    category: 'interest_rate',
+    relatedZones: ['Global'],
+    fredSeries: 'DGS10',
+    dailyThreshold: 0.03,
+    weeklyThreshold: 0.05
+  },
+  {
+    symbol: 'DGS2',
+    name: '2-Year Treasury Yield',
+    category: 'interest_rate',
+    relatedZones: ['Global'],
+    fredSeries: 'DGS2',
+    dailyThreshold: 0.03,
+    weeklyThreshold: 0.05
+  },
+  {
+    symbol: 'T10Y2Y',
+    name: '10Y-2Y Yield Spread',
+    category: 'interest_rate',
+    relatedZones: ['Global'],
+    fredSeries: 'T10Y2Y',
+    dailyThreshold: 0.02,
+    weeklyThreshold: 0.04
+  },
+  {
+    symbol: 'DFF',
+    name: 'Federal Funds Rate',
+    category: 'interest_rate',
+    relatedZones: ['Global'],
+    fredSeries: 'DFF',
+    dailyThreshold: 0.02,
+    weeklyThreshold: 0.04
+  },
+  {
+    symbol: 'T10YIE',
+    name: '10-Year Breakeven Inflation',
+    category: 'interest_rate',
+    relatedZones: ['Global'],
+    fredSeries: 'T10YIE',
+    dailyThreshold: 0.02,
+    weeklyThreshold: 0.04
   }
 ]
 
@@ -210,6 +256,47 @@ async function fetchYahooData(
     return { current, previousClose, closes7d, closes30d }
   } catch (err) {
     console.warn(`[economic] Failed to fetch ${yahooSymbol}:`, err instanceof Error ? err.message : String(err))
+    return null
+  }
+}
+
+// ── FRED API Fetcher ──
+
+/**
+ * Fetch observations from FRED API (Federal Reserve Economic Data).
+ * Returns most recent 30 observations in descending order.
+ */
+async function fetchFREDData(
+  fredSeries: string,
+  apiKey: string
+): Promise<{ current: number; previousClose: number; closes7d: number[]; closes30d: number[] } | null> {
+  const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${fredSeries}&api_key=${apiKey}&file_type=json&sort_order=desc&limit=30`
+
+  try {
+    const resp = await fetch(url, { signal: AbortSignal.timeout(15000) })
+    if (!resp.ok) {
+      console.warn(`[economic] FRED returned ${resp.status} for ${fredSeries}`)
+      return null
+    }
+
+    const body = await resp.json() as { observations: Array<{ date: string; value: string }> }
+
+    // FRED returns "." for missing values
+    const validObs = body.observations
+      .filter(o => o.value !== '.' && o.value !== '')
+      .map(o => parseFloat(o.value))
+      .filter(v => !isNaN(v))
+
+    if (validObs.length === 0) return null
+
+    const current = validObs[0] // Most recent (desc sort)
+    const previousClose = validObs.length > 1 ? validObs[1] : current
+    const closes7d = validObs.slice(0, 7).reverse() // Reverse to chronological
+    const closes30d = [...validObs].reverse()
+
+    return { current, previousClose, closes7d, closes30d }
+  } catch (err) {
+    console.warn(`[economic] FRED fetch failed for ${fredSeries}:`, err instanceof Error ? err.message : String(err))
     return null
   }
 }
@@ -372,7 +459,7 @@ function createIntelItemForAnomaly(
     summary,
     analysis: null,
     confidence: 0.9,
-    sources: [`Yahoo Finance: ${config.yahooSymbol}`],
+    sources: [config.fredSeries ? `FRED: ${config.fredSeries}` : `Yahoo Finance: ${config.yahooSymbol}`],
     region: config.relatedZones[0] ?? 'Global',
     categories: ['economic', config.category, ...(config.relatedZones.map(z => `zone:${z}`))],
     updated_at: null,
@@ -390,6 +477,9 @@ function formatValue(value: number, category: string): string {
   }
   if (category === 'shipping') {
     return Math.round(value).toLocaleString()
+  }
+  if (category === 'interest_rate') {
+    return `${value.toFixed(2)}%`
   }
   // Commodities
   return `$${value.toFixed(2)}`
@@ -412,7 +502,14 @@ export async function pollEconomicIndicators(): Promise<{ polled: number; anomal
 
   for (const config of INDICATORS) {
     try {
-      const data = await fetchYahooData(config.yahooSymbol)
+      let data
+
+      if (config.fredSeries && settings.apiKeys?.fredApiKey) {
+        data = await fetchFREDData(config.fredSeries, settings.apiKeys.fredApiKey)
+      } else if (config.yahooSymbol) {
+        data = await fetchYahooData(config.yahooSymbol)
+      }
+
       if (!data) {
         console.warn(`[economic] No data returned for ${config.symbol}`)
         continue
@@ -505,8 +602,9 @@ export function getEconomicContextString(): string {
         ? `${ind.change_pct_24h >= 0 ? '+' : ''}${(ind.change_pct_24h * 100).toFixed(1)}%`
         : 'N/A'
       const anomalyTag = ind.is_anomaly ? ' ← ANOMALY' : ''
+      const inversionTag = ind.symbol === 'T10Y2Y' && ind.value < 0 ? ' ← YIELD CURVE INVERTED' : ''
       const valueStr = formatValue(ind.value, ind.category)
-      lines.push(`${ind.name}: ${valueStr} (${change24h} 24h)${anomalyTag}`)
+      lines.push(`${ind.name}: ${valueStr} (${change24h} 24h)${anomalyTag}${inversionTag}`)
     }
 
     return lines.join('\n')

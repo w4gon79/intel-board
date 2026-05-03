@@ -479,6 +479,7 @@ export function deleteOldSocialPosts(daysOld: number): number {
  * Called after each poll cycle with the newly fetched posts.
  */
 async function promoteToIntelItems(posts: SocialPost[]): Promise<void> {
+  const promotedIds: string[] = []
   for (const post of posts) {
     // Only promote posts with decent engagement
     const minScore = post.source === 'reddit' ? 50 : 20
@@ -526,5 +527,10 @@ async function promoteToIntelItems(posts: SocialPost[]): Promise<void> {
     } catch (err) {
       console.warn('[socialMedia] ChromaDB embedding failed:', err)
     }
+    promotedIds.push(post.id)
+  }
+  // Mark all promoted posts as analyzed
+  if (promotedIds.length > 0) {
+    markPostsAnalyzed(promotedIds)
   }
 }
