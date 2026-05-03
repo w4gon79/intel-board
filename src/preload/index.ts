@@ -337,6 +337,16 @@ const api = {
     status: () => ipcRenderer.invoke('notifications:status')
   },
 
+  // ── Export ──
+  export: {
+    /** Export intel items as Markdown file */
+    markdown: (options: { tier?: string | null; hoursBack?: number | null }) =>
+      ipcRenderer.invoke('export:markdown', options),
+    /** Export intel items as PDF file */
+    pdf: (options: { tier?: string | null; hoursBack?: number | null }) =>
+      ipcRenderer.invoke('export:pdf', options)
+  },
+
   // ── Logger ──
   logger: {
     /** Read the most recent lines from the main-process log file */

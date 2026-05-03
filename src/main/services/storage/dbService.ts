@@ -644,6 +644,41 @@ export function getIntelItemCountByTier(): Record<string, number> {
   return result
 }
 
+/**
+ * Get intel items for export, with optional tier and time filters.
+ * Sorted by tier (ALERT first), then created_at descending.
+ * Default limit: 500 (prevent huge exports).
+ */
+export function getIntelItemsForExport(options: {
+  tier?: IntelTier | null
+  hoursBack?: number | null
+  limit?: number
+}): IntelItem[] {
+  const db = getDatabase()
+  const limit = options.limit ?? 500
+
+  const conditions: string[] = []
+  const params: unknown[] = []
+
+  if (options.tier) {
+    conditions.push('tier = ?')
+    params.push(options.tier)
+  }
+
+  if (options.hoursBack !== null && options.hoursBack !== undefined) {
+    conditions.push("datetime(created_at) > datetime('now', ?)")
+    params.push(`-${options.hoursBack} hours`)
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  const rows = db.prepare(
+    `SELECT * FROM intel_items ${whereClause} ORDER BY CASE tier WHEN 'ALERT' THEN 0 WHEN 'WATCH' THEN 1 WHEN 'CONTEXT' THEN 2 ELSE 3 END, created_at DESC LIMIT ?`
+  ).all(...params, limit) as DbRow[]
+
+  return rows.map(hydrateIntelItem)
+}
+
 // ════════════════════════════════════════════
 // ANOMALIES
 // ════════════════════════════════════════════

@@ -271,6 +271,24 @@ interface Window {
       }>
       status: () => Promise<Record<string, { enabled: boolean; configured: boolean }>>
     }
+
+    // ── Export ──
+    export: {
+      markdown: (options: { tier?: string | null; hoursBack?: number | null }) => Promise<{
+        success: boolean
+        path?: string
+        itemCount?: number
+        error?: string
+        canceled?: boolean
+      }>
+      pdf: (options: { tier?: string | null; hoursBack?: number | null }) => Promise<{
+        success: boolean
+        path?: string
+        itemCount?: number
+        error?: string
+        canceled?: boolean
+      }>
+    }
   }
 }
 
