@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import type { MapAnnotation, AnnotationType } from '../../../../shared/types'
-import { circleToPolygon, polygonCentroid } from '../../utils/geometry'
+import { circleToPolygon } from '../../utils/geometry'
 import { AnnotationPopup } from './AnnotationPopup'
 
 const SOURCE_ID = 'tactical-overlay-src'
