@@ -412,6 +412,47 @@ function markIntelTitleSeen(title: string, region: string | null): void {
   })
 }
 
+/** Check if an article is relevant to intelligence topics. */
+const INTEL_RELEVANCE_WORDS = [
+  // Conflict & military
+  'military', 'army', 'navy', 'air force', 'missile', 'drone', 'strike', 'airstrike',
+  'war', 'warfare', 'combat', 'troop', 'soldier', 'battalion', 'regiment', 'division',
+  'warship', 'submarine', 'carrier', 'fleet', 'vessel', 'naval', 'fleet',
+  'invasion', 'occupation', 'offensive', 'defensive', 'ceasefire', 'truce',
+  'attack', 'bomb', 'bombing', 'explosion', 'shelling', 'artillery',
+  'weapon', 'weapons', 'arms', 'arsenal', 'nuclear', 'radiological',
+  'exercise', 'maneuver', 'manoeuvre', 'drill', 'deployment', 'base',
+  // Security & intelligence
+  'security', 'intelligence', 'spy', 'espionage', 'surveillance', 'classified',
+  'cia', 'fsb', 'mi6', 'mossad', 'intelligence agency', 'operative',
+  'terror', 'terrorist', 'terrorism', 'insurgent', 'militant', 'extremist',
+  'cyber', 'hack', 'ransomware', 'data breach',
+  // Diplomacy & sanctions
+  'diplomacy', 'summit', 'treaty', 'sanctions', 'embargo', 'negotiation',
+  'peace talks', 'peace deal', 'foreign minister', 'ambassador',
+  // Geopolitical
+  'nato', 'alliance', 'pivot', 'sovereignty', 'territorial', 'border',
+  'annexation', 'separatist', 'rebellion', 'coup', 'regime',
+  // Crisis
+  'crisis', 'emergency', 'disaster', 'humanitarian', 'refugee',
+  'evacuation', 'conflict zone', 'war zone', 'frontline',
+  // Energy & strategic
+  'oil', 'gas', 'pipeline', 'nuclear energy', 'uranium', 'strait',
+  'chokepoint', 'energy', 'opec', 'lng',
+  // Aviation & maritime
+  'aviation', 'flight', 'aircraft', 'airspace', 'intercept',
+  'port', 'harbor', 'shipping', 'maritime', 'corridor'
+]
+
+/** Check if article text contains intel-relevant keywords */
+function isIntelRelevantArticle(text: string): boolean {
+  const lower = text.toLowerCase()
+  for (const word of INTEL_RELEVANCE_WORDS) {
+    if (lower.includes(word)) return true
+  }
+  return false
+}
+
 // ── Main processor ──
 
 /**
@@ -435,6 +476,17 @@ export async function processArticles(raw: RawArticle[]): Promise<IngestionResul
 
       // Combine title + content for analysis
       const text = [article.title, article.content].filter(Boolean).join(' ')
+
+      // Intel relevance filter: skip articles that aren't relevant
+      // Non-English sources may include general news; only keep intel-related content
+      if (article.language && article.language !== 'en') {
+        const isIntelRelevant = isIntelRelevantArticle(text)
+        if (!isIntelRelevant) {
+          console.log(`[processor] Skipping non-intel ${article.language} article: "${(article.title || '').substring(0, 60)}"`)
+          duplicates++
+          continue
+        }
+      }
 
       // Extract metadata
       const region = detectRegion(text)
