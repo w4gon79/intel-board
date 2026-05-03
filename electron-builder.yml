@@ -15,6 +15,9 @@ asarUnpack:
 win:
   executableName: intel-board
 nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: true
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
