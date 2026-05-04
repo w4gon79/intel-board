@@ -57,7 +57,7 @@ export function AnnotationToolbar({
   if (!visible) return null
 
   return (
-    <div className="absolute left-2.5 top-12 z-10 flex flex-col gap-1.5">
+    <div className="absolute left-2.5 top-12 z-10 flex flex-col gap-1.5 export-exclude">
       {/* Tool buttons */}
       <div className="flex items-center gap-0.5 rounded-lg border border-zinc-700/60 bg-zinc-900/90 p-1 backdrop-blur-sm">
         {TOOLS.map((tool) => (

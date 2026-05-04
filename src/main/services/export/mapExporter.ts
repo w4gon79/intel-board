@@ -1,6 +1,7 @@
 /**
- * Map Exporter — Converts base64 map canvas data URL to PNG file.
- * Optionally composites a metadata bar at the bottom of the image.
+ * Map Exporter — Composites a metadata bar onto a map screenshot PNG.
+ * The actual screenshot is now taken by Electron's capturePage() in the
+ * IPC handler, so this module only handles the optional metadata overlay.
  */
 
 import { writeFile } from 'fs/promises'
@@ -13,18 +14,10 @@ export interface MapExportMetadata {
 }
 
 /**
- * Convert a base64 data URL to a Node Buffer.
- */
-function dataUrlToBuffer(dataUrl: string): Buffer {
-  const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
-  return Buffer.from(base64, 'base64')
-}
-
-/**
  * Build a metadata bar PNG using sharp (if available).
  * Falls back to raw map PNG if sharp is not installed.
  */
-async function compositeMetadataBar(
+export async function compositeMetadataBar(
   mapBuffer: Buffer,
   metadata: MapExportMetadata
 ): Promise<Buffer> {
@@ -83,21 +76,9 @@ async function compositeMetadataBar(
 }
 
 /**
- * Save a map image from a canvas data URL to a PNG file.
- * Optionally composites a metadata bar at the bottom.
+ * Save a map image buffer directly to a PNG file.
+ * Used as a simple fallback when no metadata bar is needed.
  */
-export async function saveMapImage(
-  filePath: string,
-  imageDataUrl: string,
-  metadata: MapExportMetadata,
-  includeMetadataBar: boolean
-): Promise<void> {
-  const mapBuffer = dataUrlToBuffer(imageDataUrl)
-
-  if (includeMetadataBar) {
-    const composited = await compositeMetadataBar(mapBuffer, metadata)
-    await writeFile(filePath, composited)
-  } else {
-    await writeFile(filePath, mapBuffer)
-  }
+export async function saveMapBuffer(filePath: string, buffer: Buffer): Promise<void> {
+  await writeFile(filePath, buffer)
 }

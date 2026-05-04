@@ -289,15 +289,15 @@ interface Window {
         error?: string
         canceled?: boolean
       }>
-      /** Export current map view as PNG image */
+      /** Export current map view as PNG image via Electron capturePage() */
       mapImage: (options: {
-        imageDataUrl: string
         metadata: {
           center: [number, number]
           zoom: number
           annotationCount: number
           visibleLayers: string[]
         }
+        mapRect?: { x: number; y: number; width: number; height: number }
         includeMetadataBar?: boolean
       }) => Promise<{
         success: boolean

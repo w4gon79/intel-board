@@ -6,7 +6,7 @@ import { writeFile } from 'fs/promises'
 import { getIntelItemsForExport } from '../services/storage/dbService'
 import { generateMarkdownReport } from '../services/export/markdownExporter'
 import { generatePdfReport } from '../services/export/pdfExporter'
-import { saveMapImage, type MapExportMetadata } from '../services/export/mapExporter'
+import { compositeMetadataBar, type MapExportMetadata } from '../services/export/mapExporter'
 import type { IntelTier } from '../../shared/types'
 
 function getDefaultFilename(tier: IntelTier | null | undefined, ext: string): string {
@@ -98,24 +98,37 @@ export function registerExportHandlers(): void {
     }
   )
 
-  // Export map as PNG image
+  // Export map as PNG image — uses Electron's native capturePage() for reliable
+  // WebGL capture instead of canvas.toDataURL() which is unreliable for MapLibre.
   ipcMain.handle(
     'export:mapImage',
     async (
       _event,
       options: {
-        imageDataUrl: string
         metadata: MapExportMetadata
+        mapRect?: { x: number; y: number; width: number; height: number }
         includeMetadataBar?: boolean
       }
     ) => {
       try {
+        const win = BrowserWindow.getFocusedWindow()
+        if (!win) {
+          return { success: false, error: 'No focused window' }
+        }
+
+        // Brief wait for any pending GPU renders to land in the compositor
+        await new Promise(resolve => setTimeout(resolve, 500))
+
+        // Capture the map area (or full window if mapRect not provided)
+        const image = options.mapRect
+          ? await win.webContents.capturePage(options.mapRect)
+          : await win.webContents.capturePage()
+
         const now = new Date()
         const dateStr = now.toISOString().slice(0, 10)
         const defaultFilename = `intel-map-${dateStr}.png`
 
-        const win = BrowserWindow.getFocusedWindow()
-        const { filePath, canceled } = await dialog.showSaveDialog(win!, {
+        const { filePath, canceled } = await dialog.showSaveDialog(win, {
           title: 'Export Map as Image',
           defaultPath: defaultFilename,
           filters: [{ name: 'PNG Image', extensions: ['png'] }]
@@ -125,13 +138,20 @@ export function registerExportHandlers(): void {
           return { success: false, canceled: true }
         }
 
-        await saveMapImage(
-          filePath,
-          options.imageDataUrl,
-          options.metadata,
-          options.includeMetadataBar ?? true
-        )
+        // Write the native image to file
+        let buffer = image.toPNG()
 
+        // Optionally composite metadata bar at the bottom
+        if (options.includeMetadataBar !== false) {
+          try {
+            const composited = await compositeMetadataBar(buffer, options.metadata)
+            buffer = composited
+          } catch {
+            // If metadata bar fails, we still have the raw screenshot
+          }
+        }
+
+        await writeFile(filePath, buffer)
         return { success: true, path: filePath }
       } catch (err) {
         console.error('[export:mapImage] Error:', err)

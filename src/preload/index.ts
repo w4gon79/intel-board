@@ -347,15 +347,15 @@ const api = {
     /** Export intel items as PDF file */
     pdf: (options: { tier?: string | null; hoursBack?: number | null }) =>
       ipcRenderer.invoke('export:pdf', options),
-    /** Export current map view as PNG image */
+    /** Export current map view as PNG image via Electron capturePage() */
     mapImage: (options: {
-      imageDataUrl: string
       metadata: {
         center: [number, number]
         zoom: number
         annotationCount: number
         visibleLayers: string[]
       }
+      mapRect?: { x: number; y: number; width: number; height: number }
       includeMetadataBar?: boolean
     }) => ipcRenderer.invoke('export:mapImage', options)
   },

@@ -18,6 +18,7 @@ import { TacticalOverlayLayer } from './TacticalOverlayLayer'
 import { AnnotationToolbar } from './AnnotationToolbar'
 import type { AnnotationType } from '../../../../shared/types'
 
+
 /** CARTO dark basemap tiles – free, no API key, dark theme. */
 const MAP_STYLE = {
   version: 8 as const,
@@ -75,6 +76,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
   const [annotationColor, setAnnotationColor] = useState('#f59e0b')
   const [annotationLayer, setAnnotationLayer] = useState('default')
 
+
   useEffect(() => {
     if (!containerRef.current) return
 
@@ -88,7 +90,10 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
     } as maplibregl.MapOptions)
 
     mapRef.current = map
-    ;(window as any).__map = map
+    // Store map in per-instance array so the export handler can find the
+    // VISIBLE (desktop) map even when two SituationMaps are mounted.
+    if (!(window as any).__maps) (window as any).__maps = []
+    ;(window as any).__maps.push({ map, container: containerRef.current })
     // Register draw banner callback for MapDrawLayer
     ;(window as any).__alertDrawBanner = (msg: string | null) => setDrawBanner(msg)
 
@@ -120,7 +125,10 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
       ro.disconnect()
       map.remove()
       mapRef.current = null
-      ;(window as any).__map = null
+      // Remove this instance from the maps array
+      ;(window as any).__maps = ((window as any).__maps || []).filter(
+        (m: any) => m.map !== map
+      )
       ;(window as any).__alertDrawBanner = null
       ;(window as any).__alertDrawStart = null
       setDrawBanner(null)
@@ -287,7 +295,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
       `}</style>
       {/* ── Map overlay controls (top-left) ── */}
       {mapReady && (
-        <div className="absolute left-2.5 top-2.5 z-10 flex items-center gap-1.5">
+        <div className="absolute left-2.5 top-2.5 z-10 flex items-center gap-1.5 export-exclude">
           <select
             value={region}
             onChange={handleRegionChange}
@@ -307,7 +315,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
         aria-label="Situation map"
       >
         {cursorCoords && (
-          <div className="absolute bottom-2 left-2 z-10 rounded bg-zinc-900/80 px-2 py-1 text-[10px] text-zinc-400 backdrop-blur-sm font-mono pointer-events-none">
+          <div className="absolute bottom-2 left-2 z-10 rounded bg-zinc-900/80 px-2 py-1 text-[10px] text-zinc-400 backdrop-blur-sm font-mono pointer-events-none export-exclude">
             {Math.abs(cursorCoords.lat).toFixed(2)}°{cursorCoords.lat >= 0 ? 'N' : 'S'}, {Math.abs(cursorCoords.lng).toFixed(2)}°{cursorCoords.lng >= 0 ? 'E' : 'W'}
           </div>
         )}
@@ -373,7 +381,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
 
       {/* Draw mode banner */}
       {drawBanner && (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 rounded-lg border border-indigo-500/50 bg-indigo-950/90 px-4 py-2 text-xs text-indigo-300 backdrop-blur-sm shadow-lg pointer-events-none">
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 rounded-lg border border-indigo-500/50 bg-indigo-950/90 px-4 py-2 text-xs text-indigo-300 backdrop-blur-sm shadow-lg pointer-events-none export-exclude">
           {drawBanner}
         </div>
       )}

@@ -341,14 +341,20 @@ function detectAnomaly(
     anomalyType = anomalyType ?? 'weekly_extreme'
   }
 
-  // Check 30-day high/low extreme
+  // Check 30-day high/low extreme (only if there's meaningful recent movement)
   if (high30d !== null && low30d !== null && closes30d.length >= 10) {
-    if (current >= high30d) {
-      isAnomaly = true
-      anomalyType = 'weekly_extreme' // 30-day high
-    } else if (current <= low30d) {
-      isAnomaly = true
-      anomalyType = 'weekly_extreme' // 30-day low
+    const minDailyMove = config.dailyThreshold * 0.5
+    const minWeeklyMove = config.weeklyThreshold * 0.5
+    const hasMovement = (change24h !== null && Math.abs(change24h) >= minDailyMove) ||
+                        (change7d !== null && Math.abs(change7d) >= minWeeklyMove)
+    if (hasMovement) {
+      if (current >= high30d) {
+        isAnomaly = true
+        anomalyType = '30d_high'
+      } else if (current <= low30d) {
+        isAnomaly = true
+        anomalyType = '30d_low'
+      }
     }
   }
 
@@ -428,10 +434,18 @@ function createIntelItemForAnomaly(
   const absChange7d = anomaly.change7d !== null ? Math.abs(anomaly.change7d * 100).toFixed(1) : null
 
   // Determine tier based on severity
-  const isSevere = anomaly.change24h !== null && Math.abs(anomaly.change24h) >= config.dailyThreshold * 2
+  const isSevere = anomaly.anomalyType !== '30d_high' && anomaly.anomalyType !== '30d_low' &&
+                   anomaly.change24h !== null && Math.abs(anomaly.change24h) >= config.dailyThreshold * 2
   const tier = isSevere ? 'ALERT' : 'WATCH'
 
-  const title = `${config.name}: ${direction}${absChange24h}% to ${formatValue(indicator.value, config.category)}`
+  let title: string
+  if (anomaly.anomalyType === '30d_high') {
+    title = `${config.name} at 30-day HIGH: ${formatValue(indicator.value, config.category)} (${direction}${absChange24h}% 24h)`
+  } else if (anomaly.anomalyType === '30d_low') {
+    title = `${config.name} at 30-day LOW: ${formatValue(indicator.value, config.category)} (${direction}${absChange24h}% 24h)`
+  } else {
+    title = `${config.name}: ${direction}${absChange24h}% to ${formatValue(indicator.value, config.category)}`
+  }
 
   let summary = `${config.name} moved ${direction}${absChange24h}% in 24h to ${formatValue(indicator.value, config.category)}.`
   if (absChange7d) {

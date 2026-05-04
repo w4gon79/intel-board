@@ -37,39 +37,86 @@ export function AppShell(): React.JSX.Element {
   const openAI = useCallback(() => setAiPanelOpen(true), [])
   const closeAI = useCallback(() => setAiPanelOpen(false), [])
 
-  /** Capture the map canvas and send to main process for file save */
+  /** Export the map viewport as a PNG via Electron's native capturePage().
+   *  No canvas.toDataURL() needed — the main process takes an OS-level
+   *  screenshot which reliably captures WebGL content. */
   const handleExportMap = useCallback(async () => {
-    const map = (window as unknown as Record<string, unknown>).__map as maplibregl.Map | undefined
-    if (!map) {
-      console.warn('[AppShell] No map instance found for export')
+    const maps = ((window as unknown as Record<string, unknown>).__maps || []) as Array<{
+      map: maplibregl.Map
+      container: HTMLElement
+    }>
+
+    if (maps.length === 0) {
+      console.warn('[AppShell] No map instances found for export')
       return
     }
 
-    // Wait for the map to be fully idle before capturing
-    await new Promise<void>((resolve) => {
-      map.once('idle', () => resolve())
-      // Safety timeout in case idle never fires
-      setTimeout(resolve, 3000)
-    })
+    // Find the visible desktop map (largest rendered area)
+    let bestMap: maplibregl.Map | null = null
+    let bestContainer: HTMLElement | null = null
+    let bestArea = 0
+    for (const { map, container } of maps) {
+      const rect = container.getBoundingClientRect()
+      const area = rect.width * rect.height
+      // Must be visibly sized (>100px in both dimensions) to qualify
+      const isVisible = rect.width > 100 && rect.height > 100
+      if (isVisible && area > bestArea) {
+        bestArea = area
+        bestMap = map
+        bestContainer = container
+      }
+    }
 
-    const canvas = map.getCanvas()
-    const dataUrl = canvas.toDataURL('image/png')
-    const center = map.getCenter()
-    const zoom = map.getZoom()
+    if (!bestMap || !bestContainer) {
+      console.warn('[AppShell] No visible map found for export')
+      return
+    }
 
-    // Get visible layers list
-    const visibleLayers = Object.entries(layers)
-      .filter(([, v]) => v)
-      .map(([k]) => k)
-
+    const hiddenElements: { el: HTMLElement; prev: string }[] = []
     try {
+      // Hide UI elements that shouldn't appear in the export
+      const excludeElements = bestContainer.parentElement?.querySelectorAll('.export-exclude') || []
+      excludeElements.forEach((el) => {
+        const htmlEl = el as HTMLElement
+        hiddenElements.push({ el: htmlEl, prev: htmlEl.style.display })
+        htmlEl.style.display = 'none'
+      })
+
+      // Small delay for the hide to take effect in the compositor
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      const center = bestMap.getCenter()
+      const zoom = bestMap.getZoom()
+      const containerRect = bestContainer.getBoundingClientRect()
+      const dpr = window.devicePixelRatio || 1
+
+      // Get annotation count from the DB
+      let annotationCount = 0
+      try {
+        const annotations = await window.api.annotations.list()
+        annotationCount = annotations.filter((a: { visible: boolean }) => a.visible).length
+      } catch {
+        /* ignore — annotations API may not be available */
+      }
+
+      // Get visible layers list
+      const visibleLayers = Object.entries(layers)
+        .filter(([, v]) => v)
+        .map(([k]) => k)
+
+      // Send metadata + map bounding rect to main process for capturePage()
       const result = await window.api.export.mapImage({
-        imageDataUrl: dataUrl,
         metadata: {
           center: [center.lng, center.lat],
           zoom,
-          annotationCount: 0,
+          annotationCount,
           visibleLayers
+        },
+        mapRect: {
+          x: Math.round(containerRect.left * dpr),
+          y: Math.round(containerRect.top * dpr),
+          width: Math.round(containerRect.width * dpr),
+          height: Math.round(containerRect.height * dpr)
         }
       })
       if (result.success) {
@@ -77,7 +124,16 @@ export function AppShell(): React.JSX.Element {
       } else if (!result.canceled) {
         console.warn('[AppShell] Map export failed:', result.error)
       }
+
+      // Restore hidden UI elements
+      hiddenElements.forEach(({ el, prev }) => {
+        el.style.display = prev
+      })
     } catch (err) {
+      // Restore hidden UI elements even on error
+      hiddenElements.forEach(({ el, prev }) => {
+        el.style.display = prev
+      })
       console.error('[AppShell] Map export error:', err)
     }
   }, [layers])
