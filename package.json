@@ -1,6 +1,6 @@
 {
   "name": "intel-board",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Intel Board — RAG-grounded intelligence dashboard (Electron + React)",
   "main": "./out/main/index.js",
   "author": "Intel Board",
