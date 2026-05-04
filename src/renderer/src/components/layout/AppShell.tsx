@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import maplibregl from 'maplibre-gl'
 import { AiAssistantStrip } from './AiAssistantStrip'
 import { HeaderBar } from './HeaderBar'
 import { IntelFeedPanel } from './IntelFeedPanel'
@@ -35,6 +36,51 @@ export function AppShell(): React.JSX.Element {
   const closeSettings = useCallback(() => setSettingsOpen(false), [])
   const openAI = useCallback(() => setAiPanelOpen(true), [])
   const closeAI = useCallback(() => setAiPanelOpen(false), [])
+
+  /** Capture the map canvas and send to main process for file save */
+  const handleExportMap = useCallback(async () => {
+    const map = (window as unknown as Record<string, unknown>).__map as maplibregl.Map | undefined
+    if (!map) {
+      console.warn('[AppShell] No map instance found for export')
+      return
+    }
+
+    // Wait for the map to be fully idle before capturing
+    await new Promise<void>((resolve) => {
+      map.once('idle', () => resolve())
+      // Safety timeout in case idle never fires
+      setTimeout(resolve, 3000)
+    })
+
+    const canvas = map.getCanvas()
+    const dataUrl = canvas.toDataURL('image/png')
+    const center = map.getCenter()
+    const zoom = map.getZoom()
+
+    // Get visible layers list
+    const visibleLayers = Object.entries(layers)
+      .filter(([, v]) => v)
+      .map(([k]) => k)
+
+    try {
+      const result = await window.api.export.mapImage({
+        imageDataUrl: dataUrl,
+        metadata: {
+          center: [center.lng, center.lat],
+          zoom,
+          annotationCount: 0,
+          visibleLayers
+        }
+      })
+      if (result.success) {
+        console.log('[AppShell] Map exported to:', result.path)
+      } else if (!result.canceled) {
+        console.warn('[AppShell] Map export failed:', result.error)
+      }
+    } catch (err) {
+      console.error('[AppShell] Map export error:', err)
+    }
+  }, [layers])
 
   // Notify main process about window visibility (skip ADS-B polls when minimized)
   useEffect(() => {
@@ -82,7 +128,7 @@ export function AppShell(): React.JSX.Element {
           className="flex min-h-0 min-w-0 flex-col gap-2 lg:flex-row h-[50vh] xl:flex-1 xl:h-auto"
           aria-label="Situation map and layers"
         >
-          <LayerControls layers={layers} onToggle={handleToggleLayer} />
+          <LayerControls layers={layers} onToggle={handleToggleLayer} onExportMap={handleExportMap} />
           <div className="min-h-0 min-w-0 flex-1">
             <SituationMap layers={layers} />
           </div>

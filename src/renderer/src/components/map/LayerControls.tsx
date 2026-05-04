@@ -33,6 +33,8 @@ interface LayerCounts {
 interface LayerControlsProps {
   layers: LayerVisibility
   onToggle: (layer: keyof LayerVisibility) => void
+  /** Triggered when the user clicks "Export Map". The component handles showing the button. */
+  onExportMap?: () => void
 }
 
 const LAYER_CONFIG: Array<{
@@ -52,7 +54,7 @@ const LAYER_CONFIG: Array<{
   { key: 'annotations', label: 'Tactical Overlay', icon: '📌', color: 'text-amber-400' }
 ]
 
-export function LayerControls({ layers, onToggle }: LayerControlsProps): React.JSX.Element {
+export function LayerControls({ layers, onToggle, onExportMap }: LayerControlsProps): React.JSX.Element {
   const [counts, setCounts] = useState<LayerCounts>({ adsb: 0, ais: 0, csg: 0, intel: 0, gfw: 0, corridors: 8, regions: 15, zones: 0, annotations: 0 })
   const [aisFeedAlive, setAisFeedAlive] = useState(true)
 
@@ -191,6 +193,17 @@ export function LayerControls({ layers, onToggle }: LayerControlsProps): React.J
             </span>
           </button>
         ))}
+        {/* Export Map button (desktop) */}
+        {onExportMap && (
+          <button
+            onClick={onExportMap}
+            className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800/80 px-3 py-2 text-xs font-medium text-zinc-300 transition-all hover:border-blue-500/50 hover:text-blue-300 mt-1"
+            aria-label="Export map as image"
+          >
+            <span className="text-blue-400">📷</span>
+            <span>Export Map</span>
+          </button>
+        )}
       </div>
 
       {/* Mobile: horizontal scroll strip */}

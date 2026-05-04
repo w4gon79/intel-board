@@ -6,6 +6,7 @@ import { writeFile } from 'fs/promises'
 import { getIntelItemsForExport } from '../services/storage/dbService'
 import { generateMarkdownReport } from '../services/export/markdownExporter'
 import { generatePdfReport } from '../services/export/pdfExporter'
+import { saveMapImage, type MapExportMetadata } from '../services/export/mapExporter'
 import type { IntelTier } from '../../shared/types'
 
 function getDefaultFilename(tier: IntelTier | null | undefined, ext: string): string {
@@ -92,6 +93,51 @@ export function registerExportHandlers(): void {
         return {
           success: false,
           error: err instanceof Error ? err.message : 'Unknown error during PDF export'
+        }
+      }
+    }
+  )
+
+  // Export map as PNG image
+  ipcMain.handle(
+    'export:mapImage',
+    async (
+      _event,
+      options: {
+        imageDataUrl: string
+        metadata: MapExportMetadata
+        includeMetadataBar?: boolean
+      }
+    ) => {
+      try {
+        const now = new Date()
+        const dateStr = now.toISOString().slice(0, 10)
+        const defaultFilename = `intel-map-${dateStr}.png`
+
+        const win = BrowserWindow.getFocusedWindow()
+        const { filePath, canceled } = await dialog.showSaveDialog(win!, {
+          title: 'Export Map as Image',
+          defaultPath: defaultFilename,
+          filters: [{ name: 'PNG Image', extensions: ['png'] }]
+        })
+
+        if (canceled || !filePath) {
+          return { success: false, canceled: true }
+        }
+
+        await saveMapImage(
+          filePath,
+          options.imageDataUrl,
+          options.metadata,
+          options.includeMetadataBar ?? true
+        )
+
+        return { success: true, path: filePath }
+      } catch (err) {
+        console.error('[export:mapImage] Error:', err)
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : 'Unknown error during map export'
         }
       }
     }

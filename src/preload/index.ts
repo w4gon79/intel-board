@@ -346,7 +346,18 @@ const api = {
       ipcRenderer.invoke('export:markdown', options),
     /** Export intel items as PDF file */
     pdf: (options: { tier?: string | null; hoursBack?: number | null }) =>
-      ipcRenderer.invoke('export:pdf', options)
+      ipcRenderer.invoke('export:pdf', options),
+    /** Export current map view as PNG image */
+    mapImage: (options: {
+      imageDataUrl: string
+      metadata: {
+        center: [number, number]
+        zoom: number
+        annotationCount: number
+        visibleLayers: string[]
+      }
+      includeMetadataBar?: boolean
+    }) => ipcRenderer.invoke('export:mapImage', options)
   },
 
   // ── Chat Export ──

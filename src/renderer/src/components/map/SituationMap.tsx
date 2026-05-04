@@ -83,8 +83,9 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
       style: MAP_STYLE,
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
-      attributionControl: undefined
-    })
+      attributionControl: undefined,
+      preserveDrawingBuffer: true
+    } as maplibregl.MapOptions)
 
     mapRef.current = map
     ;(window as any).__map = map

@@ -289,6 +289,22 @@ interface Window {
         error?: string
         canceled?: boolean
       }>
+      /** Export current map view as PNG image */
+      mapImage: (options: {
+        imageDataUrl: string
+        metadata: {
+          center: [number, number]
+          zoom: number
+          annotationCount: number
+          visibleLayers: string[]
+        }
+        includeMetadataBar?: boolean
+      }) => Promise<{
+        success: boolean
+        path?: string
+        error?: string
+        canceled?: boolean
+      }>
     }
 
     // ── Chat Export ──
