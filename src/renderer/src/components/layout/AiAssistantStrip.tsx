@@ -53,16 +53,10 @@ const MessageList = memo(function MessageList({
   onQuickQuestion: (q: string) => void
   isMobileExpanded: boolean
 }): React.JSX.Element {
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [messages, loading])
+  // No scroll logic needed: newest messages are at the top
 
   return (
-    <div ref={scrollRef} className={`${isMobileExpanded ? 'flex-1 min-h-0' : 'h-[calc(100%-40px)]'} overflow-y-auto px-3 py-2 space-y-2.5 scrollbar-thin`}>
+    <div className={`${isMobileExpanded ? 'flex-1 min-h-0' : 'h-[calc(100%-40px)]'} overflow-y-auto px-3 py-2 space-y-2.5 scrollbar-thin`}>
       {messages.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center gap-3">
           <div className="text-center">
@@ -137,7 +131,6 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
         const rows = await window.api.ai.getHistory(50)
         if (rows && rows.length > 0) {
           const loaded: Message[] = rows
-            .reverse()
             .map((r) => ({
               id: r.id,
               role: r.role,
@@ -168,7 +161,7 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
         content: msg,
         createdAt: new Date().toISOString()
       }
-      setMessages((prev) => [...prev, userMsg])
+      setMessages((prev) => [userMsg, ...prev])
       setLoading(true)
 
       if (!expanded) setExpandedInternal(true)
@@ -183,7 +176,7 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
           confidence: response.confidence,
           createdAt: response.createdAt
         }
-        setMessages((prev) => [...prev, assistantMsg])
+        setMessages((prev) => [assistantMsg, ...prev])
       } catch (err) {
         console.error('[AiAssistant] Chat error:', err)
         const errorMsg: Message = {
@@ -192,13 +185,22 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
           content: 'An error occurred while processing your query. Please try again.',
           createdAt: new Date().toISOString()
         }
-        setMessages((prev) => [...prev, errorMsg])
+        setMessages((prev) => [errorMsg, ...prev])
       }
       setLoading(false)
       inputRef.current?.focus()
     },
     [input, loading, expanded]
   )
+
+  const handleClearChat = async (): Promise<void> => {
+    try {
+      await window.api.ai.clearHistory()
+      setMessages([])
+    } catch (err) {
+      console.error('[AiAssistant] Failed to clear history:', err)
+    }
+  }
 
   const handleExportConversation = async (format: 'md' | 'pdf'): Promise<void> => {
     setExportingConv(true)
@@ -271,6 +273,14 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
               className="rounded px-1 py-0.5 text-[9px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-30"
             >
               📋
+            </button>
+            <button
+              type="button"
+              onClick={handleClearChat}
+              title="Clear chat history"
+              className="rounded px-1 py-0.5 text-[9px] text-zinc-400 hover:bg-red-900/40 hover:text-red-300 transition-colors"
+            >
+              🗑️
             </button>
           </div>
         )}

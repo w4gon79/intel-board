@@ -175,10 +175,22 @@ export function registerAiHandlers(): void {
         )
         .all(limit) as ChatMessage[]
 
-      return messages.reverse()
+      return messages
     } catch (error) {
       console.error('[AI] Get history error:', error)
       return []
+    }
+  })
+
+  // Clear chat history
+  ipcMain.handle('ai:clearHistory', async () => {
+    try {
+      db.prepare('DELETE FROM chat_messages').run()
+      console.log('[IPC] Chat history cleared')
+      return { success: true }
+    } catch (err) {
+      console.error('[IPC] Failed to clear chat history:', err)
+      return { success: false, error: String(err) }
     }
   })
 

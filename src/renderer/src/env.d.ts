@@ -101,6 +101,7 @@ interface Window {
         answer: string
         sources?: unknown[]
       }>
+      clearHistory: () => Promise<{ success: boolean; error?: string }>
     }
 
     // ── Settings ──

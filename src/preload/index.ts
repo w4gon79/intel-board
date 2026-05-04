@@ -79,7 +79,9 @@ const api = {
     getHistory: (limit?: number) => ipcRenderer.invoke('ai:getHistory', limit),
     /** Generate contextual intelligence brief for a map marker */
     brief: (request: { type: string; data: Record<string, unknown> }) =>
-      ipcRenderer.invoke('ai:brief', request)
+      ipcRenderer.invoke('ai:brief', request),
+    /** Clear all chat history */
+    clearHistory: () => ipcRenderer.invoke('ai:clearHistory')
   },
 
   // ── RAG Pipeline ──

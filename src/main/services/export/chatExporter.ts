@@ -33,7 +33,8 @@ export interface ChatExportMessage {
 function formatDate(iso: string): string {
   try {
     const d = new Date(iso)
-    return d.toISOString().replace('T', ' ').slice(0, 19) + ' UTC'
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
   } catch {
     return iso
   }
@@ -42,7 +43,7 @@ function formatDate(iso: string): string {
 function formatNow(): string {
   const now = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())} UTC`
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`
 }
 
 function formatNowFilename(): string {
