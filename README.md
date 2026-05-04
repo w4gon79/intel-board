@@ -28,20 +28,24 @@ Intel Board is a desktop application that aggregates open-source intelligence fr
 - **Prediction Review** — Autonomous review of past predictions using RAG evidence gathering. LLM judges accuracy with cited sources. Calibration data feeds back into future predictions.
 
 ### Visualization
-- **MapLibre dark map** — Dark-themed map with layered overlays: carrier strike groups, flight tracks, conflict zones, ship positions, alert zones, transit corridors, custom drawing. Uses free CARTO/OpenStreetMap tiles (no API key needed).
+- **MapLibre dark map** — Dark-themed map with layered overlays: carrier strike groups, flight tracks, conflict zones, ship positions, alert zones, transit corridors, tactical annotations. Uses free CARTO/OpenStreetMap tiles (no API key needed).
+- **Tactical Overlay** — Persistent map annotations with 5 types: markers, lines, polygons, circles, and text labels. Color picker, style options, stored in SQLite.
+- **Dynamic Conflict Zones** — DBSCAN clustering engine creates, maintains, and removes zones based on real-time signals. Zone lifecycle: monitoring → active → escalating → fading → resolved. Decay factor prevents stale zones.
 - **Carrier Strike Group tracking** — Live CSG/ARG positions with vessel breakdowns, operating areas, and staleness indicators
-- **Intel Feed** — Tiered feed: active predictions, overdue items, analyzed results. Color-coded by type and urgency.
+- **Intel Feed** — Tiered feed: active predictions, overdue items, analyzed results. Color-coded by type and urgency. Export to Markdown/PDF.
 - **Alert Rules** — User-defined rules for automatic notifications on keywords, regions, or event types
 - **Push Notifications** — Real-time alerts via Telegram bot, webhook, or email when alert rules fire or built-in detections trigger (tactical events, economic anomalies, sense-making analysis)
 
 ### AI Features
 - **RAG-grounded chat** — Ask questions about current events, get answers with clickable source citations
+- **Chat export** — Export single messages or full conversations as Markdown or PDF with confidence bars, sources, and local timestamps
 - **Two-slot model config** — Primary + fallback AI models with automatic failover. Supports local Ollama, cloud OpenAI-compatible APIs, or any combination.
 - **World context** — Current world leaders, roles, and geopolitical context injected into AI prompts for accuracy
 - **Connection discovery** — AI identifies links between intel items from different sources
 - **Foreign language translation** — AI-powered translation of non-English articles. Language detection, full article translation, and bilingual storage (original + English) so translated content is searchable alongside English intel.
 - **Push Notifications** — Telegram, webhook, and email notifications for custom alert rules and built-in detections (tactical, economic, sense-making). Rate-limited with configurable toggles.
 - **Source verification** — Every AI claim links back to its source document
+- **Dynamic conflict zones** — AI-clustered zones with evidence trails, zone lifecycle (monitoring → escalating → resolved), and fallback lat/lon queries when evidence IDs go stale
 
 ## Prerequisites
 
@@ -183,12 +187,27 @@ npm run postinstall    # rebuilds better-sqlite3 etc.
 src/
   main/
     index.ts                     # Electron main process, startup sequence
-    ipc/                         # IPC handlers (predictions, settings, CSG, etc.)
+    ipc/                         # IPC handlers
+      ai.handlers.ts             # AI chat, history, clear
+      chatExport.handlers.ts      # Chat export (Markdown + PDF)
+      zone.handlers.ts           # Dynamic conflict zones
+      annotation.handlers.ts     # Map annotations
+      notification.handlers.ts   # Notifications
+      alertRule.handlers.ts      # Alert rules
+      export.handlers.ts          # Intel report export
+      economic.handlers.ts       # Economic data
+      sensemaking.handlers.ts    # Sense-making
+      ...other handlers
     services/
       analysis/
         predictor.ts             # AI prediction engine with calibration
         predictionReviewer.ts    # Autonomous prediction review & self-calibration
         senseMakingEngine.ts     # Cross-source fusion analysis
+        zoneEngine.ts            # Dynamic conflict zone engine (DBSCAN)
+      export/
+        chatExporter.ts           # AI chat export (Markdown + PDF)
+        markdownExporter.ts       # Intel report Markdown export
+        pdfExporter.ts            # Intel report PDF export with confidence bars
       identification/
         tacticalEngine.ts        # Military event detection & classification
       ingestion/
@@ -200,14 +219,14 @@ src/
         csgService.ts            # Carrier strike group orchestration
         usniScraper.ts           # USNI fleet tracker scraper + AI parser
         twzScraper.ts            # The War Zone defense news scraper
-        aisMatcher.ts            # AIS vessel matching (disabled for CSG)
+        aisMatcher.ts            # AIS vessel matching
       economic/
         economicService.ts       # Commodity/currency/interest rate tracking (Yahoo Finance + FRED)
       notifications/
-        notificationService.ts  # Notification dispatch (Telegram, webhook, email)
-        telegramSender.ts       # Telegram Bot API
-        webhookSender.ts        # Generic HTTP webhook
-        emailSender.ts          # SMTP via nodemailer
+        notificationService.ts   # Notification dispatch (Telegram, webhook, email)
+        telegramSender.ts        # Telegram Bot API
+        webhookSender.ts         # Generic HTTP webhook
+        emailSender.ts           # SMTP via nodemailer
       storage/
         database.ts              # SQLite setup, migrations
         dbService.ts             # Query functions for all domains
@@ -235,6 +254,9 @@ SQLite via `better-sqlite3`. Auto-migrated on startup. Key tables:
 - `anomalies` / `baseline_stats` — Statistical anomaly detection
 - `articles` — Stored news articles
 - `flights` / `vessels` — Real-time tracking data
+- `conflict_zones` — Dynamic DBSCAN-clustered conflict zones with evidence trails
+- `annotations` — Persistent map annotations (markers, lines, polygons, circles, text)
+- `chat_messages` — AI chat history with sources and confidence
 - `alert_rules` — User-defined notification rules
 - `economic_indicators` — Price/yield/interest rate data
 - `social_posts` — Reddit and BlueSky social media posts

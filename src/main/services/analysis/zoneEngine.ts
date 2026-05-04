@@ -437,8 +437,9 @@ export function runZoneEngine(): void {
         const newStatus = computeStatus(newScore, prevScore, existingZone.status)
         const newSensitivity = computeSensitivity(newScore)
 
-        const prevEvidence = JSON.parse(existingZone.evidence_ids || '[]') as string[]
-        const mergedEvidence = [...new Set([...prevEvidence, ...cluster.evidenceIds])].slice(0, 50)
+        // Replace stale evidence with fresh cluster evidence only.
+        // Accumulating old IDs creates orphaned references since source records are ephemeral.
+        const freshEvidence = cluster.evidenceIds.slice(0, 50)
         const prevSourceTypes = JSON.parse(existingZone.source_types || '[]') as string[]
         const mergedSourceTypes = [...new Set([...prevSourceTypes, ...cluster.sourceTypes])]
 
@@ -457,9 +458,9 @@ export function runZoneEngine(): void {
           newScore,
           newStatus,
           newSensitivity,
-          mergedEvidence.length,
+          cluster.signals.length,  // fresh signal count from this cycle
           JSON.stringify(mergedSourceTypes),
-          JSON.stringify(mergedEvidence),
+          JSON.stringify(freshEvidence),
           now,
           existingZone.id
         )
@@ -569,6 +570,49 @@ export function getZoneDetail(zoneId: string): { zone: ConflictZoneRow; evidence
       try {
         const flights = db.prepare(`SELECT icao24, callsign, aircraft_type, timestamp FROM flights WHERE id IN (${placeholders})`).all(...evidenceIds)
         evidence.push(...(flights as Array<Record<string, unknown>>).map(e => ({ ...e, source_table: 'flights', display_title: `${(e as { aircraft_type?: string; icao24?: string }).aircraft_type || (e as { icao24?: string }).icao24}` })))
+      } catch { /* ignore */ }
+    }
+
+    // Fallback: if stored evidence IDs returned nothing, query current active signals in the zone's area
+    if (evidence.length === 0 && evidenceIds.length > 0) {
+      const radiusDeg = (zone.radius_nm / 60) // rough nm-to-degrees conversion
+      const latMin = zone.center_lat - radiusDeg
+      const latMax = zone.center_lat + radiusDeg
+      const lonMin = zone.center_lon - radiusDeg
+      const lonMax = zone.center_lon + radiusDeg
+
+      // Intel items in the zone area
+      try {
+        const items = db.prepare(`
+          SELECT id, title, summary, tier, confidence, created_at
+          FROM intel_items
+          WHERE latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?
+          ORDER BY created_at DESC LIMIT 10
+        `).all(latMin, latMax, lonMin, lonMax) as Array<Record<string, unknown>>
+        evidence.push(...items.map(e => ({ ...e, source_table: 'intel_items', display_title: (e as { title?: string }).title })))
+      } catch { /* ignore */ }
+
+      // Tactical events in the zone area
+      try {
+        const events = db.prepare(`
+          SELECT id, event_type, severity, description, detected_at
+          FROM tactical_events
+          WHERE latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?
+            AND status = 'active'
+          ORDER BY detected_at DESC LIMIT 10
+        `).all(latMin, latMax, lonMin, lonMax) as Array<Record<string, unknown>>
+        evidence.push(...events.map(e => ({ ...e, source_table: 'tactical_events', display_title: (e as { description?: string }).description })))
+      } catch { /* ignore */ }
+
+      // Articles matching the zone area
+      try {
+        const articles = db.prepare(`
+          SELECT id, title, summary, source_name, published_at
+          FROM articles
+          WHERE latitude BETWEEN ? AND ? AND longitude BETWEEN ? AND ?
+          ORDER BY published_at DESC LIMIT 10
+        `).all(latMin, latMax, lonMin, lonMax) as Array<Record<string, unknown>>
+        evidence.push(...articles.map(e => ({ ...e, source_table: 'articles', display_title: (e as { title?: string }).title })))
       } catch { /* ignore */ }
     }
 

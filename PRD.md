@@ -36,11 +36,10 @@ All Tier 1 data sources are live. Core feedback loop (data ingestion, anomaly de
 
 ### What's Not Yet Built
 - Weather overlay (Tier 2)
-- Economic indicators (Tier 2)
+- Economic indicators (Tier 2) — *FRED bond yields/interest rates are live, full economic dashboard pending*
 - Social media signals (Tier 2)
 - Satellite imagery (Tier 3)
-- Custom alert rules
-- Export/share intelligence briefs
+- Export/share intelligence briefs — *Export to Markdown/PDF is live, share pending*
 - Offline mode
 
 ## Data Sources
@@ -99,7 +98,11 @@ All Tier 1 data sources are live. Core feedback loop (data ingestion, anomaly de
 ### 3. AI Chat Assistant (IMPLEMENTED)
 - Natural language queries in bottom strip
 - RAG-grounded responses citing specific sources
-- Chat history maintained
+- Chat history maintained, newest messages at top
+- Clear chat history button
+- Export single message or full conversation as Markdown or PDF
+- Confidence bars and numbered sources in exports
+- Local timestamps on all exports
 - Uses configured chat model (from AI settings)
 - Source citations inline
 
@@ -469,11 +472,22 @@ GFW 4Wings API (6-12h poll)
 - No-markdown rule applied to all LLM prompts (natural prose only)
 
 ### Phase 5: Advanced Features (CURRENT)
-- [ ] Custom alert rules (5A: basic rules)
+- [x] Custom alert rules (Telegram, webhook, email)
+- [x] Push notifications for built-in detections (tactical, economic, sense-making)
+- [x] Export intel reports as Markdown/PDF with tier filtering and date range
+- [x] Export AI chat messages and conversations as Markdown/PDF
+- [x] Tactical overlay (persistent map annotations: markers, lines, polygons, circles, text)
+- [x] Dynamic conflict zones (DBSCAN clustering, zone lifecycle, evidence trails)
+- [x] FRED economic indicators (bond yields, interest rates)
+- [x] Foreign language translation pipeline
 - [ ] Click-for-brief on map markers
-- [ ] Weather overlay (5F)
-- [ ] Economic indicators (5G)
-- [ ] Social media signals (5H)
+- [ ] Weather overlay
+- [ ] Social media signals (Reddit + BlueSky feed monitoring is live, full signal analysis pending)
+- [ ] Daily intelligence briefing (auto-generated summary)
+- [ ] Timeline view of events for a specific region
+- [ ] Watchlists
+- [ ] Contradiction detection between sources
+- [ ] Trend analysis
 
 ### Phase 6: Deploy (FUTURE)
 - Offline mode

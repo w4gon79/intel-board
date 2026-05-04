@@ -95,7 +95,17 @@ intel-board/
 │   │       │   │   ├── LayerControls.tsx # Left sidebar layer toggles
 │   │       │   │   ├── FlightLayer.tsx   # ADS-B markers + clustering
 │   │       │   │   ├── ShipLayer.tsx     # AIS markers + clustering
-│   │       │   │   └── IntelLayer.tsx    # Intel item markers
+│   │       │   │   ├── IntelLayer.tsx    # Intel item markers
+│   │       │   │   ├── TacticalOverlayLayer.tsx # Persistent map annotations
+│   │       │   │   ├── MapDrawLayer.tsx  # Leaflet.Draw integration
+│   │       │   │   ├── AnnotationToolbar.tsx # Create/edit/delete annotations
+│   │       │   │   ├── AnnotationPopup.tsx  # Edit annotation properties
+│   │       │   │   ├── ConflictZoneLayer.tsx # Dynamic conflict zones
+│   │       │   │   ├── CarrierLayer.tsx  # CSG markers
+│   │       │   │   ├── AlertZoneLayer.tsx # Alert zones
+│   │       │   │   ├── RegionLayer.tsx   # Region boundaries
+│   │       │   │   ├── TransitCorridorLayer.tsx # Choke points
+│   │       │   │   └── UnifiedMapPopup.tsx # Unified marker popup
 │   │       │   ├── feed/
 │   │       │   │   ├── IntelFeedCard.tsx # Intel item display card
 │   │       │   │   └── PredictionCard.tsx # Prediction display card
@@ -103,7 +113,7 @@ intel-board/
 │   │       │   │   ├── SettingsPanel.tsx # Settings slide-out drawer
 │   │       │   │   └── AIPanel.tsx       # AI model configuration
 │   │       │   └── chat/
-│   │       │       ├── ChatMessage.tsx   # Chat message bubble
+│   │       │       ├── ChatMessage.tsx   # Chat message bubble with export buttons
 │   │       │       └── SourceCitation.tsx # Inline source reference
 │   │       └── stores/                   # (Zustand if needed)
 │   └── shared/types.ts                  # Shared type definitions
@@ -371,12 +381,18 @@ All renderer-to-main communication via `window.api.*`:
 |-----------|---------|
 | `adsb` | getMarkers, getGeoJSON, getDetails, getCount, getMilitaryCount, startPolling, stopPolling, pollNow |
 | `ais` | getMarkers, getGeoJSON, getDetails, getCount, getCountsByCategory, getChokePoints, startStreaming, stopStreaming, getStatus, onGeoJSONUpdated |
-| `ai` | chat, getHistory |
+| `ai` | chat, getHistory, clearHistory |
+| `chatExport` | messageMarkdown, messagePdf, conversationMarkdown, conversationPdf |
 | `settings` | get, save, listModels, testConnection |
 | `rag` | query, quickAnalysis, listModels, status |
 | `data` | ingestion.start/stop/status/trigger, search, articles.*, intel.* |
 | `predictions` | getUnresolved, resolve, getAccuracy |
 | `anomalies` | getActive, getCount |
+| `annotations` | getAll, create, update, delete |
+| `zones` | list, detail, history, refresh |
+| `export` | intelReportMarkdown, intelReportPdf |
+| `notifications` | sendTest, getChannels, getStatus |
+| `alertRules` | getAll, create, update, delete, test |
 
 ## Development Commands
 
@@ -682,3 +698,97 @@ On mobile screens (`< 1280px`), the layout adapts:
 3. **`window.api` must be nested objects:** Components call `window.api.adsb.getCount()` (nested), not `window.api['adsb:getCount']` (flat). Transport shim must match preload structure exactly.
 4. **10MB JSON payloads fail:** AIS GeoJSON at 10MB causes `fetch` to timeout on mobile. Lite endpoints with field stripping + count capping are essential.
 5. **`body { overflow: hidden }` blocks mobile scroll:** The Electron CSS locks body to viewport height. Must only apply on desktop breakpoints for mobile to scroll.
+
+## Dynamic Conflict Zones
+
+### Architecture
+
+The zone engine runs on a 30-minute cycle and uses DBSCAN clustering to detect geographic concentrations of intelligence signals.
+
+**File:** `src/main/services/analysis/zoneEngine.ts`
+
+**Signal Sources (weighted by reliability):**
+- tactical_events (weight: 3.0)
+- anomalies (weight: 2.0)
+- articles (weight: 1.5)
+- flights/adsb (weight: 1.0)
+- vessels/ais (weight: 1.0)
+- intel_items (weight: 2.5)
+- notams (weight: 2.5)
+
+**Zone Lifecycle:**
+- Created when cluster heat score >= 5.0 (CREATION_THRESHOLD)
+- Status: monitoring → active → escalating → fading → resolved
+- Decay factor: 0.85x per cycle (zones die naturally without fresh signals)
+- Escalating: heat > 25.0 OR rapid increase (>1.5x previous)
+- Resolved: heat < 2.0
+
+**Home Territory Filtering:**
+- Blocks zone creation over US, Canada, UK, France, Germany, Italy, Spain, Turkey, Australia, Japan
+- Military aircraft/ships over their own country are routine, not signals
+- Home port regions (Norfolk, San Diego, Portsmouth, Toulon, Yokosuka) filtered within 100nm
+
+**Evidence Trail:**
+- Fresh evidence IDs replace stale ones each cycle (no accumulation)
+- When stored IDs return no results, `getZoneDetail` falls back to lat/lon query
+- Queries intel_items, tactical_events, and articles within zone bounding box
+
+**IPC:** `zone:list`, `zone:detail`, `zone:history`, `zone:refresh`
+
+## Export System
+
+### Architecture
+
+Three exporters handle all PDF and Markdown output:
+
+**Files:**
+- `src/main/services/export/markdownExporter.ts` — Intel report Markdown export
+- `src/main/services/export/pdfExporter.ts` — Intel report PDF export
+- `src/main/services/export/chatExporter.ts` — AI chat message and conversation export
+
+**IPC:**
+- `export:intelReportMarkdown` / `export:intelReportPdf` — Intel feed report with tier filtering and date range
+- `chatExport:messageMarkdown` / `chatExport:messagePdf` — Single AI message export
+- `chatExport:conversationMarkdown` / `chatExport:conversationPdf` — Full conversation export
+
+**PDF Features:**
+- Colored confidence bars (green >= 80%, amber >= 60%, red < 60%)
+- Numbered sources with bold titles and monospace URLs
+- Footer timestamps in local time (not UTC)
+- Save dialog with suggested filename
+
+**Key Fixes:**
+- `fillColor` reset after confidence bars (prevents orange text on page 2+)
+- Local time formatting (was UTC, now system local time)
+- Chat history loads newest-first (DESC order, no .reverse())
+
+## Map Annotations (Tactical Overlay)
+
+### Architecture
+
+Persistent map annotations stored in SQLite, supporting 5 types:
+
+**Types:** marker, line, polygon, circle, text label
+
+**Components:**
+- `TacticalOverlayLayer.tsx` — Manages annotation state and rendering
+- `MapDrawLayer.tsx` — Leaflet.Draw integration for creating annotations
+- `AnnotationToolbar.tsx` — UI toolbar for annotation type selection
+- `AnnotationPopup.tsx` — Edit annotation properties (color, label, style)
+
+**IPC:** `annotations:getAll`, `annotations:create`, `annotations:update`, `annotations:delete`
+
+**Database:**
+```sql
+CREATE TABLE annotations (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,  -- 'marker', 'line', 'polygon', 'circle', 'text'
+    label TEXT,
+    color TEXT DEFAULT '#FF0000',
+    coordinates TEXT NOT NULL,  -- JSON array of [lat, lon] pairs
+    radius REAL,  -- circle radius in meters
+    style TEXT,    -- JSON: strokeWidth, fillOpacity, etc.
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME
+);
+```
