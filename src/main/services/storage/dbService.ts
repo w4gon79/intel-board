@@ -1328,6 +1328,31 @@ export function updateAnnotation(id: string, updates: Partial<Pick<MapAnnotation
   return result.changes > 0
 }
 
+export function getChatConversation(): Array<{
+  id: number
+  role: string
+  content: string
+  sources: string | null
+  confidence: number | null
+  created_at: string
+}> {
+  const db = getDatabase()
+  return db
+    .prepare(
+      `SELECT id, role, content, sources, confidence, created_at
+       FROM chat_messages
+       ORDER BY created_at ASC`
+    )
+    .all() as Array<{
+    id: number
+    role: string
+    content: string
+    sources: string | null
+    confidence: number | null
+    created_at: string
+  }>
+}
+
 export function deleteAnnotation(id: string): boolean {
   const db = getDatabase()
   const result = db.prepare('DELETE FROM map_annotations WHERE id = ?').run(id)

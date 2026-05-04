@@ -347,6 +347,46 @@ const api = {
       ipcRenderer.invoke('export:pdf', options)
   },
 
+  // ── Chat Export ──
+  chatExport: {
+    /** Export a single chat message as Markdown */
+    messageMarkdown: (params: {
+      content: string
+      sources: Array<{
+        id: string
+        title: string
+        snippet: string
+        timestamp: string
+        score: number
+        sourceType: string
+        sourceUrl: string | null
+      }>
+      confidence?: number
+      query?: string
+      createdAt?: string
+    }) => ipcRenderer.invoke('chatExport:messageMarkdown', params),
+    /** Export a single chat message as PDF */
+    messagePdf: (params: {
+      content: string
+      sources: Array<{
+        id: string
+        title: string
+        snippet: string
+        timestamp: string
+        score: number
+        sourceType: string
+        sourceUrl: string | null
+      }>
+      confidence?: number
+      query?: string
+      createdAt?: string
+    }) => ipcRenderer.invoke('chatExport:messagePdf', params),
+    /** Export full conversation as Markdown */
+    conversationMarkdown: () => ipcRenderer.invoke('chatExport:conversationMarkdown'),
+    /** Export full conversation as PDF */
+    conversationPdf: () => ipcRenderer.invoke('chatExport:conversationPdf')
+  },
+
   // ── Logger ──
   logger: {
     /** Read the most recent lines from the main-process log file */

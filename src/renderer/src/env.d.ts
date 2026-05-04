@@ -290,6 +290,42 @@ interface Window {
       }>
     }
 
+    // ── Chat Export ──
+    chatExport: {
+      messageMarkdown: (params: {
+        content: string
+        sources: Array<{
+          id: string
+          title: string
+          snippet: string
+          timestamp: string
+          score: number
+          sourceType: string
+          sourceUrl: string | null
+        }>
+        confidence?: number
+        query?: string
+        createdAt?: string
+      }) => Promise<{ success: boolean; filePath?: string; error?: string }>
+      messagePdf: (params: {
+        content: string
+        sources: Array<{
+          id: string
+          title: string
+          snippet: string
+          timestamp: string
+          score: number
+          sourceType: string
+          sourceUrl: string | null
+        }>
+        confidence?: number
+        query?: string
+        createdAt?: string
+      }) => Promise<{ success: boolean; filePath?: string; error?: string }>
+      conversationMarkdown: () => Promise<{ success: boolean; filePath?: string; error?: string }>
+      conversationPdf: () => Promise<{ success: boolean; filePath?: string; error?: string }>
+    }
+
     // ── Map Annotations (Tactical Overlay) ──
     annotations: {
       list: (layer?: string) => Promise<SharedTypes['MapAnnotation'][]>

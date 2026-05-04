@@ -59,7 +59,40 @@ function renderWithCitations(text: string): React.ReactNode[] {
 
 export function ChatMessage({ role, content, sources = [], confidence, createdAt }: ChatMessageProps): React.JSX.Element {
   const [showSources, setShowSources] = useState(false)
+  const [exporting, setExporting] = useState<'md' | 'pdf' | null>(null)
   const isUser = role === 'user'
+
+  const handleExportMarkdown = async (): Promise<void> => {
+    setExporting('md')
+    try {
+      await window.api.chatExport.messageMarkdown({
+        content,
+        sources,
+        confidence,
+        createdAt
+      })
+    } catch (err) {
+      console.error('[ChatMessage] Markdown export failed:', err)
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  const handleExportPdf = async (): Promise<void> => {
+    setExporting('pdf')
+    try {
+      await window.api.chatExport.messagePdf({
+        content,
+        sources,
+        confidence,
+        createdAt
+      })
+    } catch (err) {
+      console.error('[ChatMessage] PDF export failed:', err)
+    } finally {
+      setExporting(null)
+    }
+  }
   const timeStr = createdAt
     ? (() => {
         // Ensure UTC parsing: if no timezone info, append Z
@@ -93,6 +126,23 @@ export function ChatMessage({ role, content, sources = [], confidence, createdAt
             <span>{sources.length} source{sources.length !== 1 ? 's' : ''}</span>
             <span className="text-zinc-600">· Show evidence</span>
           </button>
+        )}
+        {/* Export buttons — assistant messages only */}
+        {!isUser && (
+          <div className="mt-1.5 flex gap-1 opacity-50 transition-opacity hover:opacity-100">
+            <button type="button" onClick={handleExportMarkdown}
+              disabled={exporting !== null}
+              title="Export as Markdown"
+              className="rounded px-1 py-0.5 text-[9px] text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 disabled:opacity-30">
+              {exporting === 'md' ? '…' : '📄'}
+            </button>
+            <button type="button" onClick={handleExportPdf}
+              disabled={exporting !== null}
+              title="Export as PDF"
+              className="rounded px-1 py-0.5 text-[9px] text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 disabled:opacity-30">
+              {exporting === 'pdf' ? '…' : '📋'}
+            </button>
+          </div>
         )}
       </div>
       {!isUser && showSources && sources.length > 0 && (

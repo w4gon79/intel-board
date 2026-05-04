@@ -127,6 +127,7 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [exportingConv, setExportingConv] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // ── Load history on mount ──
@@ -199,6 +200,21 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
     [input, loading, expanded]
   )
 
+  const handleExportConversation = async (format: 'md' | 'pdf'): Promise<void> => {
+    setExportingConv(true)
+    try {
+      if (format === 'md') {
+        await window.api.chatExport.conversationMarkdown()
+      } else {
+        await window.api.chatExport.conversationPdf()
+      }
+    } catch (err) {
+      console.error('[AiAssistant] Conversation export failed:', err)
+    } finally {
+      setExportingConv(false)
+    }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent): void => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -235,6 +251,29 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
         </button>
 
         <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
+
+        {expanded && messages.length > 0 && (
+          <div className="flex items-center gap-0.5 opacity-50 transition-opacity hover:opacity-100">
+            <button
+              type="button"
+              onClick={() => handleExportConversation('md')}
+              disabled={exportingConv}
+              title="Export conversation as Markdown"
+              className="rounded px-1 py-0.5 text-[9px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-30"
+            >
+              📄
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportConversation('pdf')}
+              disabled={exportingConv}
+              title="Export conversation as PDF"
+              className="rounded px-1 py-0.5 text-[9px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-30"
+            >
+              📋
+            </button>
+          </div>
+        )}
 
         <input
           ref={inputRef}
