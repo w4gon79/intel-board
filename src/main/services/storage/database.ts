@@ -372,6 +372,21 @@ CREATE INDEX IF NOT EXISTS idx_conflict_zones_heat ON conflict_zones(heat_score 
     updated_at TEXT
   );
 
+  -- Seen URLs for persistent dedup (survives restarts)
+  CREATE TABLE IF NOT EXISTS seen_urls (
+    url TEXT PRIMARY KEY,
+    seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Index for fast cleanup of old URLs
+  CREATE INDEX IF NOT EXISTS idx_seen_urls_seen_at ON seen_urls(seen_at);
+
+  -- Persistent notification cooldowns (survives restarts)
+  CREATE TABLE IF NOT EXISTS notification_cooldowns (
+    key TEXT PRIMARY KEY,
+    last_sent DATETIME NOT NULL
+  );
+
   -- Custom alert rules (Phase 5A)
   CREATE TABLE IF NOT EXISTS alert_rules (
   id TEXT PRIMARY KEY,

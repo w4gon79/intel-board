@@ -562,6 +562,159 @@ export function insertIntelItem(data: InsertIntelItem): IntelItem {
   return { ...data, id, created_at } as IntelItem
 }
 
+/**
+ * Insert an intel item only if no similar item exists (DB-level dedup).
+ * Compares normalized title (lowercase, no punctuation) + region.
+ * Returns the inserted item, or null if a duplicate was found.
+ */
+export function insertIntelItemIfNotExists(data: InsertIntelItem): IntelItem | null {
+  const db = getDatabase()
+  prepareIntelStatements(db)
+
+  const normalizedTitle = data.title
+    .toLowerCase()
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  // Check for existing item with similar title AND same region (last 24 hours)
+  const existing = db.prepare(`
+    SELECT id, title FROM intel_items
+    WHERE region IS ? AND datetime(created_at) > datetime('now', '-24 hours')
+  `).all(data.region ?? null) as Array<{ id: string; title: string }>
+
+  for (const row of existing) {
+    const existingNorm = row.title
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    const wordsA = new Set(normalizedTitle.split(' ').filter(Boolean))
+    const wordsB = new Set(existingNorm.split(' ').filter(Boolean))
+
+    if (wordsA.size === 0 || wordsB.size === 0) continue
+
+    let overlap = 0
+    for (const word of wordsA) {
+      if (wordsB.has(word)) overlap++
+    }
+    const ratio = overlap / Math.min(wordsA.size, wordsB.size)
+
+    // Same threshold as before: 75% word overlap + same region = duplicate
+    if (ratio > 0.75) {
+      console.log(`[dbService] Dedup: "${data.title}" matches existing "${row.title}" (${(ratio * 100).toFixed(0)}%)`)
+      return null
+    }
+  }
+
+  // No duplicate found, insert
+  const id = uuidv4()
+  const created_at = new Date().toISOString()
+
+  stmtIntelInsert!.run({
+    id,
+    tier: data.tier,
+    title: data.title,
+    summary: data.summary,
+    analysis: data.analysis,
+    confidence: data.confidence,
+    sources: toJson(data.sources),
+    region: data.region,
+    categories: toJson(data.categories),
+    created_at,
+    updated_at: data.updated_at ?? null,
+    expires_at: data.expires_at ?? null,
+    latitude: data.latitude ?? null,
+    longitude: data.longitude ?? null
+  })
+
+  return { ...data, id, created_at } as IntelItem
+}
+
+/**
+ * Check if a URL has been seen (persisted in seen_urls table).
+ */
+export function isUrlSeen(url: string): boolean {
+  const db = getDatabase()
+  const row = db.prepare('SELECT 1 FROM seen_urls WHERE url = ?').get(url)
+  return !!row
+}
+
+/**
+ * Mark a URL as seen (persisted to DB, survives restarts).
+ */
+export function markUrlSeen(url: string): void {
+  const db = getDatabase()
+  db.prepare('INSERT OR IGNORE INTO seen_urls (url, seen_at) VALUES (?, datetime("now"))').run(url)
+}
+
+/**
+ * Clean up seen_urls older than 7 days (call periodically).
+ */
+export function cleanupSeenUrls(): number {
+  const db = getDatabase()
+  const result = db.prepare("DELETE FROM seen_urls WHERE datetime(seen_at) < datetime('now', '-7 days')").run()
+  return result.changes
+}
+
+/**
+ * Bootstrap seen_urls cache from existing articles in DB.
+ * Call once at startup.
+ */
+export function bootstrapSeenUrlsFromArticles(): number {
+  const db = getDatabase()
+  const urls = db.prepare('SELECT DISTINCT url FROM articles WHERE url IS NOT NULL LIMIT 5000').all() as Array<{ url: string }>
+  const insertStmt = db.prepare('INSERT OR IGNORE INTO seen_urls (url, seen_at) VALUES (?, datetime("now"))')
+  let count = 0
+  for (const { url } of urls) {
+    insertStmt.run(url)
+    count++
+  }
+  console.log(`[dbService] Bootstrapped ${count} seen URLs from articles table`)
+  return count
+}
+
+/**
+ * Get recent intel item titles for dedup checking.
+ * Returns the last N items ordered by created_at DESC.
+ */
+export function getRecentIntelTitles(limit: number): Array<{ title: string; region: string | null }> {
+  const db = getDatabase()
+  prepareIntelStatements(db)
+  const rows = db.prepare('SELECT title, region FROM intel_items ORDER BY created_at DESC LIMIT ?').all(limit) as Array<{ title: string; region: string | null }>
+  return rows
+}
+
+/**
+ * Check if a notification key was recently sent (persisted cooldown).
+ * Returns true if the key is still on cooldown.
+ */
+export function isNotificationOnCooldown(key: string, cooldownMs: number): boolean {
+  const db = getDatabase()
+  const row = db.prepare('SELECT last_sent FROM notification_cooldowns WHERE key = ?').get(key) as { last_sent: string } | undefined
+  if (!row) return false
+  const elapsed = Date.now() - new Date(row.last_sent).getTime()
+  return elapsed < cooldownMs
+}
+
+/**
+ * Mark a notification key as sent (persisted cooldown).
+ */
+export function markNotificationSent(key: string): void {
+  const db = getDatabase()
+  db.prepare('INSERT OR REPLACE INTO notification_cooldowns (key, last_sent) VALUES (?, datetime("now"))').run(key)
+}
+
+/**
+ * Clean up expired notification cooldowns.
+ */
+export function cleanupNotificationCooldowns(): number {
+  const db = getDatabase()
+  const result = db.prepare("DELETE FROM notification_cooldowns WHERE datetime(last_sent) < datetime('now', '-1 hour')").run()
+  return result.changes
+}
+
 export function getIntelItemById(id: string): IntelItem | undefined {
   const db = getDatabase()
   prepareIntelStatements(db)

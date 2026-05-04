@@ -7,7 +7,7 @@
 
 import type { InsertArticle, Article, IntelTier } from '../../../shared/types'
 import type { RawArticle, IngestionResult } from './news'
-import { insertArticle, getArticleCount, getArticles, insertIntelItem, getRecentIntelItems, deleteIntelItem, getIntelItemCount } from '../storage/dbService'
+import { insertArticle, getArticleCount, insertIntelItemIfNotExists, isUrlSeen, markUrlSeen, bootstrapSeenUrlsFromArticles, cleanupSeenUrls, getRecentIntelItems, deleteIntelItem, getIntelItemCount } from '../storage/dbService'
 import { embedAndStore } from '../storage/vectordb'
 import { withWorldContext } from '../../utils/worldContext'
 import { franc } from 'franc'
@@ -290,127 +290,9 @@ async function translateIfNeeded(text: string): Promise<string> {
   }
 }
 
-// ── Deduplication ──
-
-/** URL-based deduplication cache (in-memory, recent URLs only) */
-const recentUrls = new Set<string>()
-const MAX_URL_CACHE = 5000
-
-/** Check if we've already seen this URL in this session */
-function isDuplicate(url: string | null): boolean {
-  if (!url) return false
-  return recentUrls.has(url)
-}
-
-/** Mark a URL as seen */
-function markSeen(url: string | null): void {
-  if (!url) return
-  if (recentUrls.size >= MAX_URL_CACHE) {
-    // Evict oldest entries (simple approach: clear half)
-    const entries = [...recentUrls]
-    recentUrls.clear()
-    for (let i = Math.floor(entries.length / 2); i < entries.length; i++) {
-      recentUrls.add(entries[i])
-    }
-  }
-  recentUrls.add(url)
-}
-
-// ── Title-based intel item deduplication ──
-
-/** In-memory cache of recent intel item titles for fast dedup */
-const recentIntelTitles: { normalized: string; region: string | null }[] = []
-const MAX_INTEL_TITLE_CACHE = 200
-
-/**
- * Normalize a title for comparison: lowercase, strip punctuation, collapse whitespace.
- * Handles variations like "Trump widens threat..." vs "LIVE: Trump Expands Iran Threat..."
- */
-function normalizeTitle(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^\w\s]/g, '') // strip punctuation
-    .replace(/\s+/g, ' ')   // collapse whitespace
-    .trim()
-}
-
-/**
- * Calculate word overlap ratio between two normalized titles.
- * Returns a value between 0 and 1 (1 = 100% overlap).
- */
-function wordOverlap(titleA: string, titleB: string): number {
-  const wordsA = new Set(titleA.split(' ').filter(Boolean))
-  const wordsB = new Set(titleB.split(' ').filter(Boolean))
-
-  if (wordsA.size === 0 || wordsB.size === 0) return 0
-
-  let overlap = 0
-  for (const word of wordsA) {
-    if (wordsB.has(word)) overlap++
-  }
-
-  // Use the smaller set as denominator for more forgiving matching
-  const denominator = Math.min(wordsA.size, wordsB.size)
-  return overlap / denominator
-}
-
-/**
- * Check if an intel item with a similar title already exists.
- * Compares against recent intel items using word overlap + region match.
- *
- * Returns true if a duplicate is found (>75% word overlap AND same region).
- */
-function isDuplicateIntelItem(title: string, region: string | null): boolean {
-  if (!title) return false
-
-  const normalized = normalizeTitle(title)
-
-  // Check in-memory cache first (fast path)
-  for (const cached of recentIntelTitles) {
-    // Same region check (both null counts as match too — no region detected)
-    const sameRegion = region === cached.region
-    if (!sameRegion) continue
-
-    const overlap = wordOverlap(normalized, cached.normalized)
-    if (overlap > 0.75) return true
-  }
-
-  // On first calls, cache may be empty — load from DB
-  if (recentIntelTitles.length === 0) {
-    try {
-      const recentItems = getRecentIntelItems(200, 0)
-      for (const item of recentItems) {
-        recentIntelTitles.push({
-          normalized: normalizeTitle(item.title),
-          region: item.region
-        })
-      }
-      // Re-check against freshly loaded cache
-      for (const cached of recentIntelTitles) {
-        const sameRegion = region === cached.region
-        if (!sameRegion) continue
-        const overlap = wordOverlap(normalized, cached.normalized)
-        if (overlap > 0.75) return true
-      }
-    } catch (err) {
-      console.warn('[processor] Could not load recent intel items for dedup:', err)
-    }
-  }
-
-  return false
-}
-
-/** Add a title to the intel dedup cache */
-function markIntelTitleSeen(title: string, region: string | null): void {
-  if (recentIntelTitles.length >= MAX_INTEL_TITLE_CACHE) {
-    // Evict oldest half
-    recentIntelTitles.splice(0, Math.floor(recentIntelTitles.length / 2))
-  }
-  recentIntelTitles.push({
-    normalized: normalizeTitle(title),
-    region
-  })
-}
+// ── Deduplication (DB-backed, survives restarts) ──
+// URL dedup and intel item dedup are now handled by persistent DB tables.
+// See dbService.ts: isUrlSeen(), markUrlSeen(), insertIntelItemIfNotExists()
 
 /** Check if an article is relevant to intelligence topics. */
 const INTEL_RELEVANCE_WORDS = [
@@ -468,8 +350,8 @@ export async function processArticles(raw: RawArticle[]): Promise<IngestionResul
 
   for (const article of raw) {
     try {
-      // Dedup by URL
-      if (isDuplicate(article.url)) {
+      // Dedup by URL (DB-backed, survives restarts)
+      if (article.url && isUrlSeen(article.url)) {
         duplicates++
         continue
       }
@@ -516,7 +398,7 @@ export async function processArticles(raw: RawArticle[]): Promise<IngestionResul
       }
 
       const saved = insertArticle(insertData)
-      markSeen(article.url)
+      if (article.url) markUrlSeen(article.url)
       insertedArticles.push(saved)
       inserted++
 
@@ -573,16 +455,16 @@ async function embedInsertedArticles(articles: Article[]): Promise<void> {
 }
 
 /**
- * Bootstrap the dedup cache by loading recent URLs from DB.
- * Call once at startup.
+ * Bootstrap the persistent dedup cache by loading URLs from DB into seen_urls table.
+ * Also cleans up old entries. Call once at startup.
  */
 export function bootstrapDedupCache(): void {
   try {
-    const recent = getArticles(500, 0)
-    for (const a of recent) {
-      if (a.url) recentUrls.add(a.url)
-    }
-    console.log(`[processor] Dedup cache bootstrapped with ${recentUrls.size} URLs`)
+    const count = bootstrapSeenUrlsFromArticles()
+    // Also clean up old URLs
+    const cleaned = cleanupSeenUrls()
+    if (cleaned > 0) console.log(`[processor] Cleaned ${cleaned} old seen URLs`)
+    console.log(`[processor] Dedup cache bootstrapped with ${count} URLs from DB`)
   } catch (err) {
     console.warn('[processor] Could not bootstrap dedup cache:', err)
   }
@@ -622,11 +504,7 @@ async function promoteToIntelItem(article: Article): Promise<void> {
   // Translate title and summary if they appear to be non-English
   const articleTitle = await translateIfNeeded(article.title ?? 'Untitled Article')
 
-  // Title-based dedup: skip if a similar intel item already exists
-  if (isDuplicateIntelItem(articleTitle, article.region)) {
-    console.log(`[processor] Skipping duplicate intel item: "${articleTitle}"`)
-    return
-  }
+  // Title-based dedup is now handled by insertIntelItemIfNotExists below
 
   const hasAlert = ALERT_KEYWORDS.some((kw) => text.includes(kw))
   const hasWatch = WATCH_KEYWORDS.some((kw) => text.includes(kw))
@@ -659,7 +537,7 @@ async function promoteToIntelItem(article: Article): Promise<void> {
   const countryInfo = detectCountry(text)
 
   try {
-    insertIntelItem({
+    const result = insertIntelItemIfNotExists({
       tier,
       title: articleTitle,
       summary,
@@ -673,8 +551,10 @@ async function promoteToIntelItem(article: Article): Promise<void> {
       latitude: countryInfo?.lat ?? null,
       longitude: countryInfo?.lon ?? null
     })
-    // Mark this title as seen so future duplicates are caught
-    markIntelTitleSeen(articleTitle, article.region)
+    if (!result) {
+      console.log(`[processor] Skipped duplicate intel item: "${articleTitle}"`)
+      return
+    }
   } catch (err) {
     // Non-critical: don't fail the whole batch if one intel item fails
     console.warn('[processor] Failed to promote article to intel item:', err)
@@ -693,28 +573,25 @@ export function dedupExistingIntelItems(): { total: number; removed: number; kep
   const totalCount = getIntelItemCount()
   console.log(`[processor] Dedup cleanup: scanning ${totalCount} intel items...`)
 
-  // Load all items ordered by created_at ASC (oldest first — these are kept)
   const allItems = getRecentIntelItems(totalCount, 0)
-
-  // Build normalized titles
-  const normalized = allItems.map((item) => ({
-    id: item.id,
-    title: item.title,
-    normalizedTitle: normalizeTitle(item.title),
-    region: item.region
-  }))
-
   const idsToDelete: string[] = []
   const kept: { normalizedTitle: string; region: string | null }[] = []
 
-  for (const item of normalized) {
+  for (const item of allItems) {
+    const normalizedTitle = item.title.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim()
     let isDuplicate = false
 
     for (const existing of kept) {
       if (item.region !== existing.region) continue
+      const wordsA = new Set(normalizedTitle.split(' ').filter(w => w.length > 3))
+      const wordsB = new Set(existing.normalizedTitle.split(' ').filter(w => w.length > 3))
+      if (wordsA.size === 0 || wordsB.size === 0) continue
 
-      const overlap = wordOverlap(item.normalizedTitle, existing.normalizedTitle)
-      if (overlap > 0.75) {
+      let overlap = 0
+      for (const word of wordsA) { if (wordsB.has(word)) overlap++ }
+      const ratio = overlap / Math.min(wordsA.size, wordsB.size)
+
+      if (ratio > 0.75) {
         isDuplicate = true
         idsToDelete.push(item.id)
         break
@@ -722,43 +599,23 @@ export function dedupExistingIntelItems(): { total: number; removed: number; kep
     }
 
     if (!isDuplicate) {
-      kept.push({ normalizedTitle: item.normalizedTitle, region: item.region })
+      kept.push({ normalizedTitle, region: item.region })
     }
   }
 
-  if (idsToDelete.length === 0) {
-    console.log('[processor] Dedup cleanup: no duplicates found.')
-    return { total: totalCount, removed: 0, kept: totalCount }
-  }
-
-  // Delete duplicates
   let deleted = 0
   for (const id of idsToDelete) {
     if (deleteIntelItem(id)) deleted++
   }
 
-  console.log(
-    `[processor] Dedup cleanup: removed ${deleted} duplicates, ${kept.length} unique items remaining.`
-  )
-
-  // Also populate the in-memory cache with the surviving items
-  recentIntelTitles.length = 0
-  // Re-load recent items after cleanup to refresh cache
-  const survivors = getRecentIntelItems(MAX_INTEL_TITLE_CACHE, 0)
-  for (const item of survivors) {
-    recentIntelTitles.push({
-      normalized: normalizeTitle(item.title),
-      region: item.region
-    })
-  }
-
+  console.log(`[processor] Dedup cleanup: removed ${deleted} duplicates, ${kept.length} unique items remaining.`)
   return { total: totalCount, removed: deleted, kept: kept.length }
 }
 
 /** Get stats about the processor state */
 export function getProcessorStats(): { dedupCacheSize: number; dbArticleCount: number } {
   return {
-    dedupCacheSize: recentUrls.size,
+    dedupCacheSize: -1, // No longer in-memory; DB-backed
     dbArticleCount: getArticleCount()
   }
 }

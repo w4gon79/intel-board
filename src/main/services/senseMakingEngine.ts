@@ -7,7 +7,7 @@
  */
 
 import { getDatabase } from './storage/database'
-import { insertIntelItem } from './storage/dbService'
+import { insertIntelItemIfNotExists } from './storage/dbService'
 import { notifyIntelItem } from './notifications/notificationService'
 import { getCSGContextString } from './csg/csgService'
 import { withWorldContext } from '../utils/worldContext'
@@ -504,51 +504,12 @@ async function callLLMForAnalysis(prompt: string): Promise<SenseMakingResponse> 
 }
 
 function storeAnalysisResult(analysis: SenseMakingResult): void {
-  const db = getDatabase()
-
-  // Check for similar existing analyses (title word overlap > 60%)
-  const existingTitles = db.prepare(`
-    SELECT title FROM intel_items
-    WHERE categories LIKE '%ai-sensemaking%'
-    AND datetime(created_at) > datetime('now', '-4 hours')
-  `).all() as Array<{ title: string }>
-
-  const newWords = new Set(
-    analysis.title
-      .toLowerCase()
-      .replace(/\[ai analysis\]\s*/i, '')
-      .split(/\s+/)
-      .filter(w => w.length > 3)
-  )
-
-  for (const { title } of existingTitles) {
-    const existingWords = new Set(
-      title
-        .toLowerCase()
-        .replace(/\[ai analysis\]\s*/i, '')
-        .split(/\s+/)
-        .filter(w => w.length > 3)
-    )
-
-    // Calculate Jaccard similarity
-    const intersection = [...newWords].filter(w => existingWords.has(w)).length
-    const union = new Set([...newWords, ...existingWords]).size
-    const similarity = union > 0 ? intersection / union : 0
-
-    if (similarity > 0.6) {
-      console.log(`[SenseMaking] Skipping duplicate: "${analysis.title}" is similar to "${title}" (${(similarity * 100).toFixed(0)}%)`)
-      return
-    }
-  }
-
-  // No similar existing analysis, insert
   const tier = severityToTier(analysis.severity)
-
   const title = `[AI Analysis] ${analysis.title}`
   const categories = ['ai-sensemaking', 'analysis', analysis.severity]
   const sources = ['ai-sensemaking']
 
-  insertIntelItem({
+  const result = insertIntelItemIfNotExists({
     tier,
     title,
     summary: `${analysis.summary}\n\nAssessment: ${analysis.analysis}\nSeverity: ${analysis.severity}`,
@@ -562,6 +523,11 @@ function storeAnalysisResult(analysis: SenseMakingResult): void {
     latitude: null,
     longitude: null
   })
+
+  if (!result) {
+    console.log(`[SenseMaking] Skipping duplicate: "${analysis.title}"`)
+    return
+  }
 
   console.log(`[SenseMaking] Stored: ${analysis.title} (${analysis.severity})`)
 

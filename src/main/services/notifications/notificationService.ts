@@ -9,6 +9,7 @@ import { loadSettings } from '../../ipc/settings.handlers'
 import { sendTelegram, sendTelegramTest, sendTelegramDetection } from './telegramSender'
 import { sendWebhook, sendWebhookTest } from './webhookSender'
 import { sendEmail, sendEmailTest, sendEmailDetection } from './emailSender'
+import { isNotificationOnCooldown, markNotificationSent, cleanupNotificationCooldowns } from '../storage/dbService'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -29,20 +30,15 @@ export interface AlertNotification {
   timestamp: string
 }
 
-// ── Rate Limiter for Built-in Detections ───────────────────────────────────
+// ── Rate Limiter for Built-in Detections (DB-backed, survives restarts) ────
 
-const notificationCooldowns = new Map<string, number>()
 const COOLDOWN_MS = 15 * 60 * 1000 // 15 minutes per notification key
 
-function isOnCooldown(key: string): boolean {
-  const lastSent = notificationCooldowns.get(key)
-  if (!lastSent) return false
-  return Date.now() - lastSent < COOLDOWN_MS
-}
-
-function markSent(key: string): void {
-  notificationCooldowns.set(key, Date.now())
-}
+// Clean up expired cooldowns every 30 minutes
+setInterval(() => {
+  const cleaned = cleanupNotificationCooldowns()
+  if (cleaned > 0) console.log(`[Notifications] Cleaned ${cleaned} expired cooldowns`)
+}, 30 * 60 * 1000)
 
 // ── Built-in Detection Notification ────────────────────────────────────────
 
@@ -86,9 +82,9 @@ export async function notifyIntelItem(item: DetectionNotification): Promise<void
   if (cats.includes('economic') && alerts.notifyEconomic === false) return
   if (cats.includes('ai-sensemaking') && alerts.notifySenseMaking === false) return
 
-  // Rate limit by tier:title key
+  // Rate limit by tier:title key (DB-backed, survives restarts)
   const cooldownKey = `${item.tier}:${item.title}`
-  if (isOnCooldown(cooldownKey)) {
+  if (isNotificationOnCooldown(cooldownKey, COOLDOWN_MS)) {
     console.log(`[Notifications] Rate limited: ${cooldownKey}`)
     return
   }
@@ -158,8 +154,8 @@ export async function notifyIntelItem(item: DetectionNotification): Promise<void
 
   if (channels.length === 0) return
 
-  // Mark as sent for rate limiting before awaiting results
-  markSent(cooldownKey)
+  // Mark as sent for rate limiting (persisted to DB)
+  markNotificationSent(cooldownKey)
 
   const results = await Promise.allSettled(promises)
 
