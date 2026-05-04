@@ -15,7 +15,7 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import { getDatabase } from '../storage/database'
-import { insertIntelItem } from '../storage/dbService'
+import { insertIntelItemIfNotExists } from '../storage/dbService'
 import { notifyIntelItem } from '../notifications/notificationService'
 import { getActiveConflictZones } from '../analysis/zoneEngine'
 import { REGION_AREAS } from '../../../shared/regions'
@@ -282,12 +282,6 @@ function isInBoundingBox(
 
 let lastRunTimestamp = 0
 const DEBOUNCE_MS = 60_000 // 60 seconds
-
-// ─── Intel feed sync dedup ──────────────────────────────────
-// Tracks which tactical event IDs have already been synced to
-// intel_items, preventing duplicates when titles change between
-// cycles (e.g. vessel names in different order).
-const syncedEventIds = new Set<string>()
 
 // ─── Dynamic conflict zones (loaded from DB) ────────────────
 
@@ -583,99 +577,44 @@ function syncTacticalEventsToIntelFeed(): void {
   for (const row of events) {
     const event = hydrateTacticalEvent(row)
 
-    // Skip if already synced to intel feed (in-memory dedup)
-    if (syncedEventIds.has(event.id)) continue
-
     const title = event.description.split('.')[0] + '.'
     const confidence = calculateConfidence(event)
 
-    // DB-level dedup
-    // For spatial events (airlift, formation_flight, task_force, hva_tracking, bomber_projection),
-    // use geographic proximity instead of exact title match,
-    // since titles change as aircraft move and detection varies.
-    let existingItem: { id: string } | undefined
+    // Use insertIntelItemIfNotExists for DB-level dedup
+    // This checks against ALL recent intel items (not just tactical)
+    const result = insertIntelItemIfNotExists({
+      tier: event.severity,
+      title,
+      summary: event.description,
+      analysis: null,
+      confidence,
+      sources: event.assets,
+      region: event.region,
+      categories: [event.event_type, 'tactical'],
+      updated_at: null,
+      expires_at: new Date(Date.now() + (SPATIAL_EVENT_TYPES.includes(event.event_type) ? 4 : 24) * 60 * 60 * 1000).toISOString(),
+      latitude: event.latitude,
+      longitude: event.longitude
+    })
 
-    if (SPATIAL_EVENT_TYPES.includes(event.event_type) && event.latitude != null && event.longitude != null) {
-      // Geographic proximity dedup: same event type within 2 degrees and not expired
-      existingItem = db.prepare(
-        `SELECT id FROM intel_items 
-         WHERE categories LIKE ?
-           AND datetime(expires_at) > datetime('now')
-           AND latitude BETWEEN ? AND ?
-           AND longitude BETWEEN ? AND ?
-         LIMIT 1`
-      ).get(
-        `%"${event.event_type}"%`,
-        (event.latitude as number) - 2,
-        (event.latitude as number) + 2,
-        (event.longitude as number) - 2,
-        (event.longitude as number) + 2
-      ) as { id: string } | undefined
-    } else {
-      // Non-spatial events: use exact title match (existing behavior)
-      existingItem = db.prepare(
-        `SELECT id FROM intel_items WHERE title = ? AND datetime(expires_at) > datetime('now') LIMIT 1`
-      ).get(title) as { id: string } | undefined
+    if (!result) {
+      console.log(`[TacticalEngine] Dedup: skipping "${title}"`)
+      continue
     }
 
-    if (!existingItem) {
-      insertIntelItem({
-        tier: event.severity,
-        title,
-        summary: event.description,
-        analysis: null,
-        confidence,
-        sources: event.assets,
-        region: event.region,
-        categories: [event.event_type, 'tactical'],
-        updated_at: null,
-        expires_at: new Date(Date.now() + (SPATIAL_EVENT_TYPES.includes(event.event_type) ? 4 : 24) * 60 * 60 * 1000).toISOString(),
-        latitude: event.latitude,
-        longitude: event.longitude
-      })
-      console.log(`[TacticalEngine] Intel item created: ${title}`)
+    console.log(`[TacticalEngine] Intel item created: ${title}`)
 
-      // Send notification for new tactical detection (not updates)
-      notifyIntelItem({
-        tier: event.severity,
-        title,
-        summary: event.description,
-        region: event.region,
-        categories: [event.event_type, 'tactical'],
-        latitude: event.latitude,
-        longitude: event.longitude,
-        sources: event.assets
-      }).catch(err => console.error('[TacticalEngine] Notification failed:', err))
-    } else if (SPATIAL_EVENT_TYPES.includes(event.event_type) && event.latitude != null && event.longitude != null) {
-      // Update existing nearby item with latest position and description
-      db.prepare(
-        `UPDATE intel_items SET 
-           title = ?, summary = ?, latitude = ?, longitude = ?, 
-           region = ?, sources = ?, confidence = ?,
-           expires_at = ?, updated_at = datetime('now')
-         WHERE id = ?`
-      ).run(
-        title,
-        event.description,
-        event.latitude,
-        event.longitude,
-        event.region,
-        JSON.stringify(event.assets),
-        confidence,
-        new Date(Date.now() + (SPATIAL_EVENT_TYPES.includes(event.event_type) ? 4 : 24) * 60 * 60 * 1000).toISOString(),
-        existingItem.id
-      )
-      console.log(`[TacticalEngine] Updated intel item ${existingItem.id}: ${title}`)
-    }
-
-    syncedEventIds.add(event.id)
-  }
-
-  // Clean up: remove IDs of resolved events from the set to prevent
-  // unbounded growth. Resolved events won't appear in future queries.
-  const activeIds = new Set(events.map((row) => (row as Record<string, unknown>).id as string))
-  for (const id of syncedEventIds) {
-    if (!activeIds.has(id)) syncedEventIds.delete(id)
+    // Send notification for new tactical detection
+    notifyIntelItem({
+      tier: event.severity,
+      title,
+      summary: event.description,
+      region: event.region,
+      categories: [event.event_type, 'tactical'],
+      latitude: event.latitude,
+      longitude: event.longitude,
+      sources: event.assets
+    }).catch(err => console.error('[TacticalEngine] Notification failed:', err))
   }
 }
 

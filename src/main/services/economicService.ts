@@ -11,7 +11,7 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import { getDatabase } from './storage/database'
-import { insertIntelItem } from './storage/dbService'
+import { insertIntelItemIfNotExists } from './storage/dbService'
 import { notifyIntelItem } from './notifications/notificationService'
 import { loadSettings } from '../ipc/settings.handlers'
 
@@ -457,21 +457,11 @@ function createIntelItemForAnomaly(
     summary += ` Currently at 30-day LOW.`
   }
 
-  // Check for duplicate intel items (same title pattern in last 4 hours)
-  const db = getDatabase()
-  const recent = db.prepare(
-    "SELECT id FROM intel_items WHERE title LIKE ? AND datetime(created_at) > datetime('now', '-4 hours') LIMIT 1"
-  ).get(`${config.name}:%`) as { id: string } | undefined
-
-  if (recent) {
-    console.log(`[economic] Skipping duplicate intel item for ${config.symbol} (already posted in last 4h)`)
-    return
-  }
-
   const sources = [config.fredSeries ? `FRED: ${config.fredSeries}` : `Yahoo Finance: ${config.yahooSymbol}`]
   const categories = ['economic', config.category, ...(config.relatedZones.map(z => `zone:${z}`))]
 
-  insertIntelItem({
+  // Use unified dedup — checks ALL recent items with 75% word overlap + region
+  const result = insertIntelItemIfNotExists({
     tier,
     title,
     summary,
@@ -481,8 +471,13 @@ function createIntelItemForAnomaly(
     region: config.relatedZones[0] ?? 'Global',
     categories,
     updated_at: null,
-    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // expires in 24h
+    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
   })
+
+  if (!result) {
+    console.log(`[economic] Skipping duplicate intel item for ${config.symbol}`)
+    return
+  }
 
   console.log(`[economic] Created ${tier} intel item: ${title}`)
 
