@@ -48,8 +48,8 @@ export const CHOKE_POINTS = [
     name: 'Strait of Hormuz',
     lat: 26.56, lon: 56.25, radiusKm: 75,
     transitCorridor: {
-      minLat: 26.35, maxLat: 26.80,
-      minLon: 56.15, maxLon: 56.60
+      minLat: 26.45, maxLat: 26.70,
+      minLon: 56.25, maxLon: 56.50
     }
   },
   {

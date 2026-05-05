@@ -413,6 +413,8 @@ function buildAnalysisPrompt(
 CURRENT FLEET POSTURE:
 ${csgContext}
 
+⚠️ CRITICAL: The FLEET POSTURE section above is GROUND TRUTH from verified tracking data. Ship locations, operating areas, and group compositions listed there are CONFIRMED and AUTHORITATIVE. Do NOT contradict or override them with information from news articles, social media, or previous AI analyses. If a carrier group's operating area in FLEET POSTURE says "eastern pacific", it is in the eastern pacific, NOT in any other theater regardless of what other sources suggest.
+
 CHOKE POINT TRAFFIC STATUS:
 ${chokePointContext}
 
