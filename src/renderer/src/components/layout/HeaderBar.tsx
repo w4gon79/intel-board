@@ -1,9 +1,10 @@
 interface HeaderBarProps {
   onOpenSettings: () => void
   onOpenAI: () => void
+  onOpenAbout: () => void
 }
 
-export function HeaderBar({ onOpenSettings, onOpenAI }: HeaderBarProps): React.JSX.Element {
+export function HeaderBar({ onOpenSettings, onOpenAI, onOpenAbout }: HeaderBarProps): React.JSX.Element {
   return (
     <header className="flex shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4 py-2.5">
       <div className="flex items-center gap-3">
@@ -13,6 +14,13 @@ export function HeaderBar({ onOpenSettings, onOpenAI }: HeaderBarProps): React.J
         </span>
       </div>
       <nav className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpenAbout}
+          className="rounded-md border border-zinc-800 bg-zinc-900/50 px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+        >
+          About
+        </button>
         <button
           type="button"
           onClick={onOpenSettings}

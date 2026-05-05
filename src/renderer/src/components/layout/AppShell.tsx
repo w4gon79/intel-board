@@ -8,6 +8,7 @@ import { LayerControls, type LayerVisibility } from '../map/LayerControls'
 import { SituationMap } from '../map/SituationMap'
 import { SettingsPanel } from '../settings/SettingsPanel'
 import { AIPanel } from '../settings/AIPanel'
+import { AboutModal } from './AboutModal'
 import { IntelHighlightProvider } from '../../contexts/IntelHighlightContext'
 
 const DEFAULT_LAYERS: LayerVisibility = {
@@ -26,6 +27,7 @@ export function AppShell(): React.JSX.Element {
   const [layers, setLayers] = useState<LayerVisibility>(DEFAULT_LAYERS)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
   const [mobileTab, setMobileTab] = useState<'map' | 'intel' | 'ai'>('map')
 
   const handleToggleLayer = (layer: keyof LayerVisibility): void => {
@@ -36,6 +38,8 @@ export function AppShell(): React.JSX.Element {
   const closeSettings = useCallback(() => setSettingsOpen(false), [])
   const openAI = useCallback(() => setAiPanelOpen(true), [])
   const closeAI = useCallback(() => setAiPanelOpen(false), [])
+  const openAbout = useCallback(() => setAboutOpen(true), [])
+  const closeAbout = useCallback(() => setAboutOpen(false), [])
 
   /** Export the map viewport as a PNG via Electron's native capturePage().
    *  No canvas.toDataURL() needed — the main process takes an OS-level
@@ -158,7 +162,7 @@ export function AppShell(): React.JSX.Element {
   return (
     <IntelHighlightProvider>
     <div className="flex min-h-0 flex-col bg-zinc-950 text-zinc-100 min-h-screen h-[100dvh]">
-      <HeaderBar onOpenSettings={openSettings} onOpenAI={openAI} />
+      <HeaderBar onOpenSettings={openSettings} onOpenAI={openAI} onOpenAbout={openAbout} />
       <StatusBar layers={layers} />
 
       {/* Mobile Tab Bar */}
@@ -214,6 +218,7 @@ export function AppShell(): React.JSX.Element {
       </div>
 
       <SettingsPanel open={settingsOpen} onClose={closeSettings} />
+      <AboutModal open={aboutOpen} onClose={closeAbout} />
       <AIPanel open={aiPanelOpen} onClose={closeAI} />
     </div>
     </IntelHighlightProvider>

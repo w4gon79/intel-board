@@ -470,8 +470,8 @@ export function IntelFeedPanel(): React.JSX.Element {
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-zinc-500">
             {selected.sources && selected.sources.length > 0 && (
               <span>Sources: {selected.sources.map((s, i) => (
-                i > 0 ? <>, {typeof s === 'string' ? linkifySource(s, i) : String(s)}</> : (typeof s === 'string' ? linkifySource(s, i) : String(s))
-              ))}</span>
+                typeof s === 'string' ? linkifySource(s, i) : String(s)
+              )).reduce<React.ReactNode[]>((acc, el, i) => i === 0 ? [el] : [...acc, ', ', el], [])}</span>
             )}
             {selected.region && <span>Region: {selected.region}</span>}
             <span>Confidence: {Math.round((selected.confidence ?? 0) * 100)}%</span>

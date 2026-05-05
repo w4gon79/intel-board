@@ -212,7 +212,7 @@ export default function IntelLayer({
   map,
   visible = true
 }: IntelLayerProps): React.JSX.Element {
-  const { registerFlashCallback } = useIntelHighlight()
+  const { registerFlashCallback, unregisterFlashCallback } = useIntelHighlight()
   const [geojson, setGeojson] = useState<IntelFeatureCollection>({
     type: 'FeatureCollection',
     features: []
@@ -221,6 +221,7 @@ export default function IntelLayer({
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const sourcesAddedRef = useRef(false)
   const geojsonRef = useRef<IntelFeatureCollection>(geojson)
+  const flashCallbackRef = useRef<((id: string) => void) | null>(null)
 
   // Keep geojson ref current for flash callback
   useEffect(() => {
@@ -302,7 +303,7 @@ export default function IntelLayer({
       map.on('mouseleave', LAYER_ID, () => { map.getCanvas().style.cursor = '' })
 
       // Register flash callback for feed → map highlighting
-      registerFlashCallback((id: string) => {
+      const flashCallback = (id: string) => {
         if (!map || !sourcesAddedRef.current) return
 
         // Use the ref instead of source.serialize()
@@ -330,7 +331,9 @@ export default function IntelLayer({
         flashTimeoutRef.current = setTimeout(() => {
           setFlashingId(null)
         }, 3000)
-      })
+      }
+      flashCallbackRef.current = flashCallback
+      registerFlashCallback(flashCallback)
     }
 
     // Use try/catch + style.load fallback instead of isStyleLoaded()/on('load').
@@ -350,6 +353,7 @@ export default function IntelLayer({
     }
 
     return () => {
+      if (flashCallbackRef.current) unregisterFlashCallback(flashCallbackRef.current)
       map.off('style.load', addSourcesAndLayers)
       if (map && sourcesAddedRef.current) {
         try {
