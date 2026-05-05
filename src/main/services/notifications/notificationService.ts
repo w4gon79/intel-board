@@ -43,6 +43,7 @@ setInterval(() => {
 // ── Built-in Detection Notification ────────────────────────────────────────
 
 export interface DetectionNotification {
+  id?: string
   tier: string
   title: string
   summary: string
@@ -82,7 +83,13 @@ export async function notifyIntelItem(item: DetectionNotification): Promise<void
   if (cats.includes('economic') && alerts.notifyEconomic === false) return
   if (cats.includes('ai-sensemaking') && alerts.notifySenseMaking === false) return
 
-  // Rate limit by tier:title key (DB-backed, survives restarts)
+  // Rate limit by item ID first (prevents re-notification of same DB item after restart)
+  // then by tier:title key for similar events (DB-backed, survives restarts)
+  const itemCooldownKey = `item:${item.id ?? item.title}`
+  if (isNotificationOnCooldown(itemCooldownKey, COOLDOWN_MS * 4)) { // 1 hour per item ID
+    console.log(`[Notifications] Item rate limited: ${itemCooldownKey}`)
+    return
+  }
   const cooldownKey = `${item.tier}:${item.title}`
   if (isNotificationOnCooldown(cooldownKey, COOLDOWN_MS)) {
     console.log(`[Notifications] Rate limited: ${cooldownKey}`)
@@ -156,6 +163,7 @@ export async function notifyIntelItem(item: DetectionNotification): Promise<void
 
   // Mark as sent for rate limiting (persisted to DB)
   markNotificationSent(cooldownKey)
+  markNotificationSent(itemCooldownKey)
 
   const results = await Promise.allSettled(promises)
 
