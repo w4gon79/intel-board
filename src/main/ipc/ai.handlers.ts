@@ -58,15 +58,22 @@ export function registerAiHandlers(): void {
 
         if (result && result.answer) {
           // Map RAG source citations to chat source format
-          sources = (result.sources ?? []).map((s) => ({
-            id: String(s.sourceId),
-            title: `${s.sourceType} — ${s.region ?? 'unknown'}`,
-            snippet: '',
-            timestamp: s.timestamp ?? new Date().toISOString(),
-            score: s.confidence,
-            sourceType: s.sourceType,
-            sourceUrl: null as string | null
-          }))
+          sources = (result.sources ?? []).map((s) => {
+            let title = `${s.sourceType} — ${s.region ?? 'unknown'}`
+            if (s.sourceType === 'live-fleet') title = 'Fleet Posture (CSG/ARG tracking)'
+            if (s.sourceType === 'live-tactical') title = 'Tactical Events (ADS-B/AIS)'
+            if (s.sourceType === 'live-chokepoint') title = 'Choke Point Traffic (AIS/GFW)'
+            if (s.sourceType === 'live-alerts') title = 'Active Intel Alerts'
+            return {
+              id: String(s.sourceId),
+              title,
+              snippet: '',
+              timestamp: s.timestamp ?? new Date().toISOString(),
+              score: s.confidence,
+              sourceType: s.sourceType,
+              sourceUrl: null as string | null
+            }
+          })
 
           // Batch lookup article URLs, titles, and content snippets from DB
           if (sources.length > 0) {

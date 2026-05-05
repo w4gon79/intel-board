@@ -73,19 +73,23 @@ FORMATTING: Write in natural prose. Do NOT use markdown formatting: no **bold**,
  * Build the full system prompt with live data positioned as PRIMARY intelligence,
  * followed by world context and the fusion analysis rules.
  */
-function buildSystemPrompt(): string {
+function buildSystemPrompt(): { prompt: string; liveSources: Array<{ label: string; type: string }> } {
   let csgContext = 'No carrier group data available.'
   let tacticalContext = 'No recent tactical events.'
   let chokePointContext = 'No choke point traffic data available.'
   let recentAlerts = 'No recent alerts.'
+  const liveSources: Array<{ label: string; type: string }> = []
   try {
     csgContext = getCSGContextString()
+    liveSources.push({ label: 'Fleet Posture (CSG/ARG tracking)', type: 'live-fleet' })
   } catch { /* DB not ready yet */ }
   try {
     tacticalContext = getTacticalEventsContext()
+    liveSources.push({ label: 'Tactical Events (ADS-B/AIS)', type: 'live-tactical' })
   } catch { /* DB not ready yet */ }
   try {
     chokePointContext = getChokePointTrafficContext()
+    liveSources.push({ label: 'Choke Point Traffic (AIS/GFW)', type: 'live-chokepoint' })
   } catch { /* DB not ready yet */ }
   try {
     const db = getDatabase()
@@ -102,12 +106,13 @@ function buildSystemPrompt(): string {
       recentAlerts = alerts.map(a =>
         `- [${a.tier}] ${a.title}${a.summary ? '\n  Summary: ' + a.summary.slice(0, 200) : ''}${a.categories ? '\n  Categories: ' + a.categories : ''}`
       ).join('\n')
+      liveSources.push({ label: 'Active Intel Alerts', type: 'live-alerts' })
     } else {
       recentAlerts = 'No active alerts in the last 24 hours.'
     }
   } catch { /* DB not ready yet */ }
 
-  return `${withWorldContext(BASE_SYSTEM_PROMPT)}
+  return { prompt: `${withWorldContext(BASE_SYSTEM_PROMPT)}
 
 CURRENT INTELLIGENCE PICTURE:
 
@@ -123,7 +128,7 @@ FLEET POSTURE (CARRIER AND AMPHIBIOUS GROUPS):
 ${csgContext}
 
 RECENT TACTICAL EVENTS:
-${tacticalContext}`
+${tacticalContext}`, liveSources }
 }
 
 // ── Public API ──
@@ -165,7 +170,8 @@ export async function executeRAG(request: RAGRequest): Promise<RAGResponse> {
   console.log(`[rag] Retrieved ${chunksRetrieved} chunks for context`)
 
   // Step 2: Build messages array
-  const messages = buildMessages(query, history, context, sourceLabels)
+  const systemPrompt = buildSystemPrompt()
+  const messages = buildMessages(query, history, context, sourceLabels, systemPrompt.liveSources)
 
   // Step 3: Generate response via LLM
   let llmResponse
@@ -188,7 +194,7 @@ export async function executeRAG(request: RAGRequest): Promise<RAGResponse> {
   }
 
   // Step 4: Parse citations from response
-  const citations = parseCitations(llmResponse.text, rawResults)
+  const citations = parseCitations(llmResponse.text, rawResults, systemPrompt.liveSources)
 
   console.log(
     `[rag] Generated response (${llmResponse.durationMs}ms, ${citations.length} citations, ` +
@@ -236,18 +242,24 @@ function buildMessages(
   query: string,
   history: ChatMessage[],
   context: string,
-  sourceLabels: string[]
+  sourceLabels: string[],
+  liveSources: Array<{ label: string; type: string }>
 ): ChatMessage[] {
   const messages: ChatMessage[] = []
 
   // System prompt (with live CSG + tactical context injected)
+  const systemPrompt = buildSystemPrompt()
   messages.push({
     role: 'system',
-    content: buildSystemPrompt()
+    content: systemPrompt.prompt
   })
 
   // Add context as a system-level user message
-  const contextBlock = buildContextBlock(context, sourceLabels)
+  const allLabels = [
+    ...liveSources.map(s => s.label),
+    ...sourceLabels
+  ]
+  const contextBlock = buildContextBlock(context, allLabels, liveSources.length)
   messages.push({
     role: 'user',
     content: contextBlock
@@ -277,14 +289,18 @@ function buildMessages(
 /**
  * Build the context block with source labels for injection into the prompt.
  */
-function buildContextBlock(context: string, sourceLabels: string[]): string {
+function buildContextBlock(context: string, sourceLabels: string[], liveSourceCount: number = 0): string {
   const labelList = sourceLabels.length > 0
     ? sourceLabels.map((label, i) => `  [Source ${i + 1}] ${label}`).join('\n')
     : '  No sources available.'
 
+  const liveNote = liveSourceCount > 0
+    ? `\nNote: Sources 1-${liveSourceCount} are LIVE DATA (fleet posture, tactical events, choke point traffic, active alerts). These are real-time system data, not archival articles. Cite them with [Source N] just like articles.`
+    : ''
+
   return `RETRIEVED INTELLIGENCE (ARCHIVAL CONTEXT):
 
-The following articles and reports have been retrieved from the intelligence database. These provide contextual depth and historical background to supplement the real-time data in your Current Intelligence Picture above. Cite article sources using [Source N] notation. For live fleet/tactical data, reference specific assets and choke point statuses directly (e.g., "CSG-3 (Lincoln) currently in Arabian Sea", "Strait of Hormuz: OPEN, 12 vessels transiting").
+The following articles and reports have been retrieved from the intelligence database. These provide contextual depth and historical background to supplement the real-time data in your Current Intelligence Picture above. Cite article sources using [Source N] notation. For live data sources, also cite them using [Source N] notation from the source reference key below. For specific assets and choke point statuses, reference them directly (e.g., "CSG-3 (Lincoln) currently in Arabian Sea", "Strait of Hormuz: OPEN, 12 vessels transiting").${liveNote}
 
 SOURCE REFERENCE KEY:
 ${labelList}
@@ -300,7 +316,8 @@ End of retrieved intelligence. Synthesize this archival context with the real-ti
  */
 function parseCitations(
   responseText: string,
-  results: RankedSearchResult[]
+  results: RankedSearchResult[],
+  liveSources: Array<{ label: string; type: string }> = []
 ): SourceCitation[] {
   const citations: SourceCitation[] = []
   const seen = new Set<number>()
@@ -315,30 +332,45 @@ function parseCitations(
     if (seen.has(index)) continue
     seen.add(index)
 
-    // Match to retrieved results (1-based index)
-    const resultIndex = index - 1
-    if (resultIndex >= 0 && resultIndex < results.length) {
-      const result = results[resultIndex]
+    const liveIndex = index - 1
+    if (liveIndex < liveSources.length) {
+      // This is a live data source
+      const live = liveSources[liveIndex]
       citations.push({
         index,
-        sourceType: result.metadata.source_type,
-        sourceId: result.metadata.source_id,
-        feed: result.metadata.feed,
-        region: result.metadata.region,
-        timestamp: result.metadata.timestamp || null,
-        confidence: Math.round((1 - result.distance) * 100) / 100
-      })
-    } else {
-      // Source reference exists but no matching result — add partial citation
-      citations.push({
-        index,
-        sourceType: 'unknown',
+        sourceType: live.type,
         sourceId: '',
         feed: null,
         region: null,
-        timestamp: null,
-        confidence: 0
+        timestamp: new Date().toISOString(),
+        confidence: 1.0 // Live data is verified
       })
+    } else if (liveIndex >= liveSources.length) {
+      // This is a RAG article source
+      const resultIndex = liveIndex - liveSources.length
+      if (resultIndex >= 0 && resultIndex < results.length) {
+        const result = results[resultIndex]
+        citations.push({
+          index,
+          sourceType: result.metadata.source_type,
+          sourceId: result.metadata.source_id,
+          feed: result.metadata.feed,
+          region: result.metadata.region,
+          timestamp: result.metadata.timestamp || null,
+          confidence: Math.round((1 - result.distance) * 100) / 100
+        })
+      } else {
+        // Source reference exists but no matching result
+        citations.push({
+          index,
+          sourceType: 'unknown',
+          sourceId: '',
+          feed: null,
+          region: null,
+          timestamp: null,
+          confidence: 0
+        })
+      }
     }
   }
 
