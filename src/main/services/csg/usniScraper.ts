@@ -855,6 +855,8 @@ Rules:
 - Always include hull_number for every vessel
 - Do NOT include lat/lon coordinates. The system resolves coordinates from operating_area automatically.
 - IMPORTANT: Return ONLY valid JSON. No markdown code fences, no explanation.
+- CRITICAL: The operating_area MUST be extracted VERBATIM from the article text. Do NOT infer, guess, or use prior knowledge. If the article says "operating in the Eastern Pacific", use "eastern pacific". If the article does NOT explicitly state the operating area for a ship, use the area mentioned NEAREST to that ship's name in the text. NEVER invent an area that does not appear in the article.
+- CRITICAL: Do NOT use a ship's homeport as its operating area. If the article says "operating in the Indian Ocean" and "homeported in Sasebo", the operating_area is "indian ocean", NOT "sasebo". Homeport and operating area are different things.
 
 Article text:
 ${articleText.substring(0, 16000)}`
@@ -958,11 +960,21 @@ ${articleText.substring(0, 16000)}`
 
     // Check for port patterns in this context
     for (const { pattern, area } of PORT_PATTERNS) {
-      if (pattern.test(context)) {
-        console.log(`[CSG-Scraper] Area correction: ${group.flagship} "${group.operating_area}" → "${area}" (matched ${pattern.source})`)
-        group.operating_area = area
-        break
+      const portMatch = pattern.exec(context)
+      if (!portMatch) continue
+
+      // Get text before the port mention (60 chars) to check for homeport references
+      const portContextBefore = context.substring(Math.max(0, portMatch.index - 60), portMatch.index).toLowerCase()
+
+      // Skip if this is clearly a homeport reference, not a current location
+      if (/\bhome[\s-]?port\b|\bbased\s+(in|out\s+of)\b|\bfrom\b/.test(portContextBefore)) {
+        console.log(`[CSG-Scraper] Area correction skipped: "${area}" appears to be homeport, not current location`)
+        continue
       }
+
+      console.log(`[CSG-Scraper] Area correction: ${group.flagship} "${group.operating_area}" → "${area}" (matched ${pattern.source})`)
+      group.operating_area = area
+      break
     }
   }
 

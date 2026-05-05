@@ -574,6 +574,7 @@ export function insertIntelItemIfNotExists(data: InsertIntelItem): IntelItem | n
   const normalizedTitle = data.title
     .toLowerCase()
     .replace(/[^\w\s]/g, '')
+    .replace(/\b[\d,.]+%?\b/g, 'N')
     .replace(/\s+/g, ' ')
     .trim()
 
@@ -587,6 +588,7 @@ export function insertIntelItemIfNotExists(data: InsertIntelItem): IntelItem | n
     const existingNorm = row.title
       .toLowerCase()
       .replace(/[^\w\s]/g, '')
+      .replace(/\b[\d,.]+%?\b/g, 'N')
       .replace(/\s+/g, ' ')
       .trim()
 
@@ -646,7 +648,7 @@ export function isUrlSeen(url: string): boolean {
  */
 export function markUrlSeen(url: string): void {
   const db = getDatabase()
-  db.prepare('INSERT OR IGNORE INTO seen_urls (url, seen_at) VALUES (?, datetime("now"))').run(url)
+  db.prepare('INSERT OR IGNORE INTO seen_urls (url, seen_at) VALUES (?, datetime(\'now\'))').run(url)
 }
 
 /**
@@ -665,7 +667,7 @@ export function cleanupSeenUrls(): number {
 export function bootstrapSeenUrlsFromArticles(): number {
   const db = getDatabase()
   const urls = db.prepare('SELECT DISTINCT url FROM articles WHERE url IS NOT NULL LIMIT 5000').all() as Array<{ url: string }>
-  const insertStmt = db.prepare('INSERT OR IGNORE INTO seen_urls (url, seen_at) VALUES (?, datetime("now"))')
+  const insertStmt = db.prepare('INSERT OR IGNORE INTO seen_urls (url, seen_at) VALUES (?, datetime(\'now\'))')
   let count = 0
   for (const { url } of urls) {
     insertStmt.run(url)
@@ -703,7 +705,7 @@ export function isNotificationOnCooldown(key: string, cooldownMs: number): boole
  */
 export function markNotificationSent(key: string): void {
   const db = getDatabase()
-  db.prepare('INSERT OR REPLACE INTO notification_cooldowns (key, last_sent) VALUES (?, datetime("now"))').run(key)
+  db.prepare('INSERT OR REPLACE INTO notification_cooldowns (key, last_sent) VALUES (?, datetime(\'now\'))').run(key)
 }
 
 /**
