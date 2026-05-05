@@ -1121,7 +1121,7 @@ export async function scrapeUsniFleetTracker(): Promise<number> {
 
     // Step 7: Clean up stale groups not updated by this scrape
     const now = new Date()
-    const STALE_GROUP_DAYS = 14 // Groups older than 14 days with no update = likely gone
+    const STALE_GROUP_DAYS = 7 // Groups older than 7 days with no update = likely gone
 
     const staleGroups = getDatabase().prepare(`
       SELECT id, name, designation, flagship, last_updated 

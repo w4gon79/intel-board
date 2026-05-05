@@ -28,6 +28,12 @@ const MARKER_LAYER_ID = CARRIER_MARKER_LAYER_ID
 const ALL_LAYER_IDS = [PATROL_LAYER_ID, MARKER_LAYER_ID, LABEL_LAYER_ID]
 const ICON_ID = 'carrier-hex'
 
+// ── Stale threshold ──────────────────────────────────────────
+// Ships not confirmed in >3 days get a dimmed "⏳ Stale" indicator.
+// Ships >7 days are deleted from the DB entirely (see usniScraper.ts).
+const STALE_THRESHOLD_DAYS = 3
+const STALE_MS = STALE_THRESHOLD_DAYS * 24 * 60 * 60 * 1000
+
 // ── Types ────────────────────────────────────────────────────
 
 export interface CsgProperties {
@@ -41,6 +47,7 @@ export interface CsgProperties {
   last_updated: string | null
   vessel_count: number
   vessel_types: string[]
+  stale: boolean
 }
 
 interface CsgFeature {
@@ -171,29 +178,36 @@ export default function CarrierLayer({
   const geojson: CsgFeatureCollection = {
     type: 'FeatureCollection',
     features: (() => {
+      const now = Date.now()
       const features = groups
         .filter(g => g.latitude != null && g.longitude != null)
-        .map(g => ({
-          type: 'Feature' as const,
-          geometry: {
-            type: 'Point' as const,
-            coordinates: [g.longitude!, g.latitude!] as [number, number]
-          },
-          properties: {
-            id: g.id,
-            name: g.name,
-            designation: g.designation,
-            flagship: g.flagship,
-            status: g.status,
-            operating_area: g.operating_area,
-            source: g.source,
-            last_updated: g.last_updated,
-            vessel_count: g.vessels.length,
-            vessel_types: g.vessels
-              .map(v => v.hull_number ?? v.vessel_name)
-              .filter(Boolean) as string[]
+        .map(g => {
+          const isStale = g.last_updated
+            ? (now - new Date(g.last_updated).getTime()) > STALE_MS
+            : true
+          return {
+            type: 'Feature' as const,
+            geometry: {
+              type: 'Point' as const,
+              coordinates: [g.longitude!, g.latitude!] as [number, number]
+            },
+            properties: {
+              id: g.id,
+              name: g.name,
+              designation: g.designation,
+              flagship: g.flagship,
+              status: g.status,
+              operating_area: g.operating_area,
+              source: g.source,
+              last_updated: g.last_updated,
+              vessel_count: g.vessels.length,
+              vessel_types: g.vessels
+                .map(v => v.hull_number ?? v.vessel_name)
+                .filter(Boolean) as string[],
+              stale: isStale
+            }
           }
-        }))
+        })
 
       return features
     })()
@@ -276,9 +290,12 @@ export default function CarrierLayer({
         },
         paint: {
           'icon-opacity': [
-            'match',
-            ['get', 'status'],
-            'in-port', 0.5,
+            'case',
+            ['any',
+              ['boolean', ['get', 'stale'], false],
+              ['==', ['get', 'status'], 'in-port']
+            ],
+            0.5,
             1.0
           ]
         }
@@ -292,9 +309,10 @@ export default function CarrierLayer({
         minzoom: 3,
         layout: {
           'text-field': [
-            'coalesce',
-            ['get', 'flagship'],
-            ['get', 'name']
+            'case',
+            ['boolean', ['get', 'stale'], false],
+            ['concat', '⏳ ', ['coalesce', ['get', 'flagship'], ['get', 'name']]],
+            ['coalesce', ['get', 'flagship'], ['get', 'name']]
           ],
           'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
           'text-size': 12,
@@ -493,8 +511,7 @@ function getSourceBadge(source: string): string {
 
 function isStale(lastUpdated: string | null): boolean {
   if (!lastUpdated) return true
-  const ageHours = (Date.now() - new Date(lastUpdated).getTime()) / (1000 * 60 * 60)
-  return ageHours > 48 // Stale after 48 hours
+  return (Date.now() - new Date(lastUpdated).getTime()) > STALE_MS
 }
 
 export function buildMultiGroupPopupHtml(
@@ -537,8 +554,11 @@ export function buildPopupHtml(
   const flagship = props.flagship || 'Unknown'
   const area = props.operating_area || 'Unknown'
   const stale = isStale(props.last_updated)
+  const lastConfirmedDate = props.last_updated
+    ? new Date(props.last_updated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : 'Unknown'
   const staleWarning = stale
-    ? '<div style="color:#ff9800;font-size:10px;margin-top:4px;">⚠ Position may be stale (no recent update)</div>'
+    ? `<div style="color:#ff9800;font-size:10px;margin-top:4px;">⏳ Stale — Last confirmed: ${lastConfirmedDate}</div>`
     : ''
 
   // Vessel list
