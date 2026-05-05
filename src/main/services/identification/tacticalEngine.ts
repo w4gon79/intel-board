@@ -499,6 +499,12 @@ function resolveOldEvents(): void {
     .run()
   if (result.changes > 0) {
     console.log(`[TacticalEngine] Resolved ${result.changes} events (4h/24h TTL)`)
+    // Clean up links for resolved events
+    db.prepare(
+      `DELETE FROM tactical_intel_links WHERE tactical_event_id IN (
+        SELECT id FROM tactical_events WHERE status = 'resolved'
+      )`
+    ).run()
   }
 }
 
@@ -580,6 +586,20 @@ function syncTacticalEventsToIntelFeed(): void {
     const title = event.description.split('.')[0] + '.'
     const confidence = calculateConfidence(event)
 
+    // Check if this tactical event already has a linked intel item
+    const existingLink = db.prepare(
+      `SELECT intel_id FROM tactical_intel_links WHERE tactical_event_id = ?`
+    ).get(event.id) as { intel_id: string } | undefined
+
+    if (existingLink) {
+      // Update the existing intel item's position and summary
+      db.prepare(
+        `UPDATE intel_items SET latitude = ?, longitude = ?, summary = ?, updated_at = datetime('now') WHERE id = ?`
+      ).run(event.latitude, event.longitude, event.description, existingLink.intel_id)
+      console.log(`[TacticalEngine] Updated intel item ${existingLink.intel_id.substring(0, 8)} for tactical event ${event.id.substring(0, 8)}`)
+      continue
+    }
+
     // Use insertIntelItemIfNotExists for DB-level dedup
     // This checks against ALL recent intel items (not just tactical)
     const result = insertIntelItemIfNotExists({
@@ -601,6 +621,13 @@ function syncTacticalEventsToIntelFeed(): void {
       console.log(`[TacticalEngine] Dedup: skipping "${title}"`)
       continue
     }
+
+    // Link tactical event to intel item
+    db.prepare(
+      `INSERT OR IGNORE INTO tactical_intel_links (tactical_event_id, intel_id) VALUES (?, ?)`
+    ).run(event.id, result.id)
+
+    console.log(`[TacticalEngine] Intel item created: ${title}`)
 
     console.log(`[TacticalEngine] Intel item created: ${title}`)
 
@@ -695,7 +722,9 @@ function detectAirlifts(): void {
       // Use centroid for region lookup (not group[0]) so region matches marker position
       const region = findNearestZone(centroid.lat, centroid.lon)
       const regionName = region?.name || 'unknown region'
-      const eventRegion = `airlift-${direction}-${regionName}`
+      // For airlift, use a coarse theater name for dedup (prevents 30+ markers across Atlantic)
+      const theaterName = getCoarseTheater(centroid.lat, centroid.lon)
+      const eventRegion = `airlift-${direction}-${theaterName}`
       const description =
         `Airlift operation detected: ${group.length} ${typeSummary.join('/')} aircraft ` +
         `transiting ${direction} in the past 4h. Likely major logistical deployment. ` +
@@ -712,7 +741,8 @@ function detectAirlifts(): void {
       }
 
       // Also skip if there's a nearby event with same direction (secondary dedup)
-      if (isNearbyActiveEvent('airlift', centroid.lat, centroid.lon, 2, 2, direction)) continue
+      // Use wider radius for airlift (5°) since formations spread along flight paths
+      if (isNearbyActiveEvent('airlift', centroid.lat, centroid.lon, 5, 4, direction)) continue
 
       // Skip airlift detections over friendly home territory.
       // Routine C-130/C-17 flights over the US are training/logistics, not tactical.
@@ -1208,6 +1238,27 @@ function detectBomberProjection(): void {
 }
 
 // ─── Helpers ────────────────────────────────────────────────
+
+/** Get a coarse theater name for airlift dedup (prevents many markers per flow direction). */
+function getCoarseTheater(lat: number, lon: number): string {
+  // North Atlantic (transatlantic airlift corridor)
+  if (lat >= 25 && lat <= 65 && lon >= -80 && lon < 0) return 'North Atlantic'
+  // Western Europe
+  if (lat >= 35 && lat <= 60 && lon >= 0 && lon <= 20) return 'Western Europe'
+  // Eastern Europe / Black Sea
+  if (lat >= 35 && lat <= 60 && lon > 20 && lon <= 45) return 'Eastern Europe'
+  // Middle East / Arabian Sea
+  if (lat >= 10 && lat <= 40 && lon > 45 && lon <= 75) return 'Middle East'
+  // Central Asia / Caspian
+  if (lat >= 35 && lat <= 55 && lon > 45 && lon <= 80) return 'Central Asia'
+  // Mediterranean
+  if (lat >= 30 && lat <= 45 && lon >= -10 && lon <= 36) return 'Mediterranean'
+  // North America
+  if (lat >= 15 && lat <= 70 && lon >= -130 && lon < -80) return 'North America'
+  // Pacific
+  if (lon >= 100 || lon <= -130) return 'Pacific'
+  return 'unknown region'
+}
 
 function findNearestZone(lat: number, lon: number): ConflictZone | null {
   const zones = loadZones()

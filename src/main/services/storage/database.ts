@@ -206,6 +206,12 @@ CREATE TABLE IF NOT EXISTS tactical_events (
     longitude REAL
 );
 
+CREATE TABLE IF NOT EXISTS tactical_intel_links (
+    tactical_event_id TEXT NOT NULL REFERENCES tactical_events(id),
+    intel_id TEXT NOT NULL REFERENCES intel_items(id),
+    PRIMARY KEY (tactical_event_id)
+);
+
 -- Prediction reviews (auto-review system)
 CREATE TABLE IF NOT EXISTS prediction_reviews (
     id TEXT PRIMARY KEY,
