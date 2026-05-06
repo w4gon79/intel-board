@@ -765,6 +765,71 @@ Provide a concise intelligence brief including:
       }
     })
 
+    app.delete('/api/ai/history', (_req, res) => {
+      try {
+        const db = getDatabase()
+        db.prepare('DELETE FROM chat_messages').run()
+        console.log('[HTTP] Chat history cleared')
+        res.json({ success: true })
+      } catch (err) {
+        res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'Failed to clear history' })
+      }
+    })
+
+    app.get('/api/ai/export/markdown', (_req, res) => {
+      try {
+        const db = getDatabase()
+        const rows = db
+          .prepare(`SELECT id, role, content, sources, confidence, created_at FROM chat_messages ORDER BY created_at ASC`)
+          .all() as Record<string, unknown>[]
+        const messages = rows.map((r) => ({
+          id: r.id as number,
+          role: r.role as string,
+          content: r.content as string,
+          sources: r.sources ? JSON.parse(r.sources as string) : undefined,
+          confidence: r.confidence as number | null,
+          createdAt: r.created_at as string
+        }))
+        const { exportConversationMarkdown } = require('../export/chatExporter')
+        const md = exportConversationMarkdown(messages)
+        res.setHeader('Content-Type', 'text/markdown')
+        res.setHeader('Content-Disposition', 'attachment; filename="intel-chat-export.md"')
+        res.send(md)
+      } catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Export failed' })
+      }
+    })
+
+    app.get('/api/ai/export/pdf', (_req, res) => {
+      try {
+        const db = getDatabase()
+        const rows = db
+          .prepare(`SELECT id, role, content, sources, confidence, created_at FROM chat_messages ORDER BY created_at ASC`)
+          .all() as Record<string, unknown>[]
+        const messages = rows.map((r) => ({
+          id: r.id as number,
+          role: r.role as string,
+          content: r.content as string,
+          sources: r.sources ? JSON.parse(r.sources as string) : undefined,
+          confidence: r.confidence as number | null,
+          createdAt: r.created_at as string
+        }))
+        const { exportConversationPdf } = require('../export/chatExporter')
+        const os = require('os')
+        const path = require('path')
+        const tmpPath = path.join(os.tmpdir(), `intel-chat-export-${Date.now()}.pdf`)
+        exportConversationPdf(messages, tmpPath).then(() => {
+          res.setHeader('Content-Type', 'application/pdf')
+          res.setHeader('Content-Disposition', 'attachment; filename="intel-chat-export.pdf"')
+          res.sendFile(tmpPath, () => {
+            try { require('fs').unlinkSync(tmpPath) } catch {}
+          })
+        })
+      } catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Export failed' })
+      }
+    })
+
     // ── RAG Pipeline ──
     app.post('/api/rag/query', async (req, res) => {
       try {

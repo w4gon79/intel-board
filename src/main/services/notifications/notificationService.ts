@@ -6,7 +6,10 @@
  */
 
 import { loadSettings } from '../../ipc/settings.handlers'
-import { sendTelegram, sendTelegramTest, sendTelegramDetection } from './telegramSender'
+// Telegram sender module was removed - stubs below
+const sendTelegram = async (_msg: string): Promise<{ ok: boolean; error?: string }> => ({ ok: false, error: 'Telegram module removed' })
+const sendTelegramTest = async (_s: unknown): Promise<{ ok: boolean; error?: string }> => ({ ok: false, error: 'Telegram module removed' })
+const sendTelegramDetection = async (_s: unknown, _d: unknown): Promise<{ ok: boolean; error?: string }> => ({ ok: false, error: 'Telegram module removed' })
 import { sendWebhook, sendWebhookTest } from './webhookSender'
 import { sendEmail, sendEmailTest, sendEmailDetection } from './emailSender'
 import { isNotificationOnCooldown, markNotificationSent, cleanupNotificationCooldowns } from '../storage/dbService'
@@ -200,7 +203,7 @@ export async function sendAlert(alert: AlertNotification): Promise<void> {
   if (tg?.enabled && tg.botToken && tg.chatId) {
     channels.push('telegram')
     promises.push(
-      sendTelegram(tg, alert).then((result) => {
+      sendTelegram(JSON.stringify(alert)).then((result) => {
         if (result.ok) {
           console.log('[Notifications] Telegram sent OK')
         } else {

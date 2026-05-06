@@ -62,15 +62,21 @@ export function ChatMessage({ role, content, sources = [], confidence, createdAt
   const [exporting, setExporting] = useState<'md' | 'pdf' | null>(null)
   const isUser = role === 'user'
 
+  const isElectron = typeof window.api !== 'undefined'
+
   const handleExportMarkdown = async (): Promise<void> => {
     setExporting('md')
     try {
-      await window.api.chatExport.messageMarkdown({
-        content,
-        sources,
-        confidence,
-        createdAt
-      })
+      if (isElectron) {
+        await window.api.chatExport.messageMarkdown({
+          content,
+          sources,
+          confidence,
+          createdAt
+        })
+      } else {
+        window.open('/api/ai/export/markdown', '_blank')
+      }
     } catch (err) {
       console.error('[ChatMessage] Markdown export failed:', err)
     } finally {
@@ -81,12 +87,16 @@ export function ChatMessage({ role, content, sources = [], confidence, createdAt
   const handleExportPdf = async (): Promise<void> => {
     setExporting('pdf')
     try {
-      await window.api.chatExport.messagePdf({
-        content,
-        sources,
-        confidence,
-        createdAt
-      })
+      if (isElectron) {
+        await window.api.chatExport.messagePdf({
+          content,
+          sources,
+          confidence,
+          createdAt
+        })
+      } else {
+        window.open('/api/ai/export/pdf', '_blank')
+      }
     } catch (err) {
       console.error('[ChatMessage] PDF export failed:', err)
     } finally {

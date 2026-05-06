@@ -779,8 +779,15 @@ export function deleteIntelItem(id: string): boolean {
 export function deleteExpiredIntelItems(): number {
   const db = getDatabase()
   prepareIntelStatements(db)
-  const result = stmtIntelDeleteExpired!.run()
-  return result.changes
+  const deleteOrphanedLinks = db.prepare(
+    "DELETE FROM tactical_intel_links WHERE intel_id IN (SELECT id FROM intel_items WHERE expires_at IS NOT NULL AND datetime(expires_at) < datetime('now'))"
+  )
+  const purgeExpired = db.transaction(() => {
+    deleteOrphanedLinks.run()
+    const result = stmtIntelDeleteExpired!.run()
+    return result.changes
+  })
+  return purgeExpired()
 }
 
 export function getIntelItemCount(): number {

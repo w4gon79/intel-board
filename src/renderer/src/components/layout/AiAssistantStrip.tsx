@@ -124,18 +124,27 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
   const [exportingConv, setExportingConv] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // ── Detect Electron vs Web context ──
+  const isElectron = typeof window.api !== 'undefined'
+
   // ── Load history on mount ──
   useEffect(() => {
     async function loadHistory(): Promise<void> {
       try {
-        const rows = await window.api.ai.getHistory(50)
+        let rows
+        if (isElectron) {
+          rows = await window.api.ai.getHistory(50)
+        } else {
+          const res = await fetch('/api/ai/history?limit=50')
+          rows = await res.json()
+        }
         if (rows && rows.length > 0) {
           const loaded: Message[] = rows
             .map((r) => ({
               id: r.id,
               role: r.role,
               content: r.content,
-              sources: r.sources ? JSON.parse(r.sources) : undefined,
+              sources: r.sources ? (typeof r.sources === 'string' ? JSON.parse(r.sources) : r.sources) : undefined,
               confidence: r.confidence ?? undefined,
               createdAt: r.created_at
             }))
@@ -167,7 +176,17 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
       if (!expanded) setExpandedInternal(true)
 
       try {
-        const response = await window.api.ai.chat(msg)
+        let response
+        if (isElectron) {
+          response = await window.api.ai.chat(msg)
+        } else {
+          const res = await fetch('/api/ai/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: msg })
+          })
+          response = await res.json()
+        }
         const assistantMsg: Message = {
           id: response.id,
           role: 'assistant',
@@ -195,7 +214,11 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
 
   const handleClearChat = async (): Promise<void> => {
     try {
-      await window.api.ai.clearHistory()
+      if (isElectron) {
+        await window.api.ai.clearHistory()
+      } else {
+        await fetch('/api/ai/history', { method: 'DELETE' })
+      }
       setMessages([])
     } catch (err) {
       console.error('[AiAssistant] Failed to clear history:', err)
@@ -205,10 +228,15 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
   const handleExportConversation = async (format: 'md' | 'pdf'): Promise<void> => {
     setExportingConv(true)
     try {
-      if (format === 'md') {
-        await window.api.chatExport.conversationMarkdown()
+      if (isElectron) {
+        if (format === 'md') {
+          await window.api.chatExport.conversationMarkdown()
+        } else {
+          await window.api.chatExport.conversationPdf()
+        }
       } else {
-        await window.api.chatExport.conversationPdf()
+        const url = format === 'md' ? '/api/ai/export/markdown' : '/api/ai/export/pdf'
+        window.open(url, '_blank')
       }
     } catch (err) {
       console.error('[AiAssistant] Conversation export failed:', err)

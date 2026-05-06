@@ -207,8 +207,8 @@ CREATE TABLE IF NOT EXISTS tactical_events (
 );
 
 CREATE TABLE IF NOT EXISTS tactical_intel_links (
-    tactical_event_id TEXT NOT NULL REFERENCES tactical_events(id),
-    intel_id TEXT NOT NULL REFERENCES intel_items(id),
+    tactical_event_id TEXT NOT NULL REFERENCES tactical_events(id) ON DELETE CASCADE,
+    intel_id TEXT NOT NULL REFERENCES intel_items(id) ON DELETE CASCADE,
     PRIMARY KEY (tactical_event_id)
 );
 
