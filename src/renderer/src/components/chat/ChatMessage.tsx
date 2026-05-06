@@ -62,7 +62,7 @@ export function ChatMessage({ role, content, sources = [], confidence, createdAt
   const [exporting, setExporting] = useState<'md' | 'pdf' | null>(null)
   const isUser = role === 'user'
 
-  const isElectron = typeof window.api !== 'undefined'
+  const isElectron = typeof window.api !== 'undefined' && typeof window.api.chatExport?.messageMarkdown === 'function'
 
   const handleExportMarkdown = async (): Promise<void> => {
     setExporting('md')

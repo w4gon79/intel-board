@@ -41,8 +41,10 @@ export function TacticalOverlayLayer({
   // ── Load annotations from DB ──
   const loadAnnotations = useCallback(async () => {
     try {
-      const items = await window.api.annotations.list()
-      setAnnotations(items)
+      if (window.api?.annotations?.list) {
+        const items = await window.api.annotations.list()
+        setAnnotations(items)
+      }
     } catch (err) {
       console.error('[TacticalOverlay] Failed to load annotations:', err)
     }
@@ -411,7 +413,7 @@ export function TacticalOverlayLayer({
   // ── Handle delete ──
   async function handleDelete(id: string): Promise<void> {
     try {
-      await window.api.annotations.delete(id)
+      if (window.api?.annotations?.delete) await window.api.annotations.delete(id)
       if (popupRef.current) {
         popupRef.current.remove()
         popupRef.current = null
@@ -426,7 +428,7 @@ export function TacticalOverlayLayer({
   // ── Handle save (from popup) ──
   async function handleSave(id: string, updates: Partial<MapAnnotation>): Promise<void> {
     try {
-      await window.api.annotations.update(id, updates)
+      if (window.api?.annotations?.update) await window.api.annotations.update(id, updates)
       await loadAnnotations()
     } catch (err) {
       console.error('[TacticalOverlay] Update failed:', err)
@@ -723,18 +725,20 @@ export function TacticalOverlayLayer({
     }
 
     try {
-      const ann = await window.api.annotations.create({
-        type,
-        coordinates,
-        color: selectedColor,
-        label: null,
-        description: null,
-        icon: type === 'marker' ? '📍' : null,
-        layer: activeLayer || 'default',
-        visible: true
-      })
-      onAnnotationCreated?.(ann)
-      await loadAnnotations()
+      if (window.api?.annotations?.create) {
+        const ann = await window.api.annotations.create({
+          type,
+          coordinates,
+          color: selectedColor,
+          label: null,
+          description: null,
+          icon: type === 'marker' ? '📍' : null,
+          layer: activeLayer || 'default',
+          visible: true
+        })
+        onAnnotationCreated?.(ann)
+        await loadAnnotations()
+      }
     } catch (err) {
       console.error('[TacticalOverlay] Create failed:', err)
     }

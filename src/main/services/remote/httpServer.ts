@@ -9,7 +9,7 @@
 import { createServer, type Server } from 'http'
 import express, { type Request, type Response } from 'express'
 import { join } from 'path'
-import { readFileSync, readdirSync } from 'fs'
+import { readFileSync, readdirSync, unlinkSync } from 'fs'
 import { is } from '@electron-toolkit/utils'
 import { loadSettings, loadSettingsMasked, saveSettings as persistSettings, mergeApiKeys, type AppSettings } from '../../ipc/settings.handlers'
 import { config, reloadConfigFromSettings } from '../../utils/config'
@@ -67,6 +67,8 @@ import { listRules, createRule, updateRule, deleteRule } from '../alerts/ruleEng
 import { executeRAG } from '../rag/pipeline'
 import { runSenseMaking, getSenseMakingStatus } from '../senseMakingEngine'
 import { getScraperStatus, toggleScraper, refreshScraper } from '../scrapers/scraperManager'
+import { exportConversationMarkdown, exportConversationPdf } from '../export/chatExporter'
+import type { ChatExportMessage } from '../export/chatExporter'
 
 // GFW Vessel Presence
 import { getGfwPresence, getGfwPresenceByChokepoint, getGfwStatus, triggerGfwPoll } from './gfwService'
@@ -782,15 +784,14 @@ Provide a concise intelligence brief including:
         const rows = db
           .prepare(`SELECT id, role, content, sources, confidence, created_at FROM chat_messages ORDER BY created_at ASC`)
           .all() as Record<string, unknown>[]
-        const messages = rows.map((r) => ({
-          id: r.id as number,
-          role: r.role as string,
+        const messages = (rows as Record<string, unknown>[]).map((r) => ({
+          id: r.id as string | number,
+          role: r.role as 'user' | 'assistant' | 'system',
           content: r.content as string,
           sources: r.sources ? JSON.parse(r.sources as string) : undefined,
-          confidence: r.confidence as number | null,
+          confidence: (r.confidence as number | null) ?? undefined,
           createdAt: r.created_at as string
-        }))
-        const { exportConversationMarkdown } = require('../export/chatExporter')
+        })) as ChatExportMessage[]
         const md = exportConversationMarkdown(messages)
         res.setHeader('Content-Type', 'text/markdown')
         res.setHeader('Content-Disposition', 'attachment; filename="intel-chat-export.md"')
@@ -806,23 +807,20 @@ Provide a concise intelligence brief including:
         const rows = db
           .prepare(`SELECT id, role, content, sources, confidence, created_at FROM chat_messages ORDER BY created_at ASC`)
           .all() as Record<string, unknown>[]
-        const messages = rows.map((r) => ({
-          id: r.id as number,
-          role: r.role as string,
+        const messages = (rows as Record<string, unknown>[]).map((r) => ({
+          id: r.id as string | number,
+          role: r.role as 'user' | 'assistant' | 'system',
           content: r.content as string,
           sources: r.sources ? JSON.parse(r.sources as string) : undefined,
-          confidence: r.confidence as number | null,
+          confidence: (r.confidence as number | null) ?? undefined,
           createdAt: r.created_at as string
-        }))
-        const { exportConversationPdf } = require('../export/chatExporter')
-        const os = require('os')
-        const path = require('path')
-        const tmpPath = path.join(os.tmpdir(), `intel-chat-export-${Date.now()}.pdf`)
+        })) as ChatExportMessage[]
+        const tmpPath = join(process.cwd(), `intel-chat-export-${Date.now()}.pdf`)
         exportConversationPdf(messages, tmpPath).then(() => {
           res.setHeader('Content-Type', 'application/pdf')
           res.setHeader('Content-Disposition', 'attachment; filename="intel-chat-export.pdf"')
           res.sendFile(tmpPath, () => {
-            try { require('fs').unlinkSync(tmpPath) } catch {}
+            try { unlinkSync(tmpPath) } catch {}
           })
         })
       } catch (err) {

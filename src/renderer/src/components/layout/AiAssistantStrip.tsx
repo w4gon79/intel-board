@@ -125,14 +125,14 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
   const inputRef = useRef<HTMLInputElement>(null)
 
   // ── Detect Electron vs Web context ──
-  const isElectron = typeof window.api !== 'undefined'
+  const isElectron = typeof window.api !== 'undefined' && typeof window.api.ai?.clearHistory === 'function'
 
   // ── Load history on mount ──
   useEffect(() => {
     async function loadHistory(): Promise<void> {
       try {
         let rows
-        if (isElectron) {
+        if (typeof window.api !== 'undefined' && window.api.ai?.getHistory) {
           rows = await window.api.ai.getHistory(50)
         } else {
           const res = await fetch('/api/ai/history?limit=50')
@@ -177,7 +177,7 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
 
       try {
         let response
-        if (isElectron) {
+        if (typeof window.api !== 'undefined' && window.api.ai?.chat) {
           response = await window.api.ai.chat(msg)
         } else {
           const res = await fetch('/api/ai/chat', {
@@ -228,7 +228,7 @@ export function AiAssistantStrip({ expanded: expandedProp }: AiAssistantStripPro
   const handleExportConversation = async (format: 'md' | 'pdf'): Promise<void> => {
     setExportingConv(true)
     try {
-      if (isElectron) {
+      if (typeof window.api !== 'undefined' && window.api.chatExport?.conversationMarkdown) {
         if (format === 'md') {
           await window.api.chatExport.conversationMarkdown()
         } else {
