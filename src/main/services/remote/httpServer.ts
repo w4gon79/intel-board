@@ -65,6 +65,7 @@ import { listRules, createRule, updateRule, deleteRule } from '../alerts/ruleEng
 
 // AI / RAG
 import { executeRAG } from '../rag/pipeline'
+import { mapRAGSourcesToChatSources } from '../../utils/mapRAGSources'
 import { runSenseMaking, getSenseMakingStatus } from '../senseMakingEngine'
 import { getScraperStatus, toggleScraper, refreshScraper } from '../scrapers/scraperManager'
 import { exportConversationMarkdown, exportConversationPdf } from '../export/chatExporter'
@@ -629,15 +630,8 @@ export class RemoteServer {
         try {
           const result = await executeRAG({ query: message, history: [] })
           if (result?.answer) {
-            sources = (result.sources ?? []).map((s) => ({
-              id: String(s.sourceId),
-              title: `${s.sourceType} — ${s.region ?? 'unknown'}`,
-              snippet: '',
-              timestamp: s.timestamp ?? new Date().toISOString(),
-              score: s.confidence,
-              sourceType: s.sourceType,
-              sourceUrl: null
-            }))
+            // Map RAG source citations to chat source format (shared with IPC handler)
+            sources = mapRAGSourcesToChatSources(result.sources ?? [], db)
             if (sources.length > 0) {
               const avgScore = sources.reduce((sum, s) => sum + s.score, 0) / sources.length
               confidence = avgScore
