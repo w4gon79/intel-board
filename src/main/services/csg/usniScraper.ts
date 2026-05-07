@@ -41,7 +41,7 @@ export const AREA_COORDS: Record<string, { lat: number; lon: number }> = {
   'philippine sea': { lat: 20, lon: 130 },
   'sea of japan': { lat: 40, lon: 135 },
   'east china sea': { lat: 28, lon: 125 },
-  'strait of hormuz': { lat: 26.5, lon: 56.75 },
+  'strait of hormuz': { lat: 26.5, lon: 56.35 },
   'gulf of aden': { lat: 12, lon: 45 },
   'bab el-mandeb': { lat: 12.6, lon: 43.3 },
   'central pacific': { lat: 10, lon: -170 },

@@ -13,7 +13,7 @@
  * These are the navigable passage areas that ships actually transit through.
  */
 export const TRANSIT_CORRIDORS = [
-  { name: 'Strait of Hormuz', minLat: 26.45, maxLat: 26.7, minLon: 56.75, maxLon: 57.0 },
+  { name: 'Strait of Hormuz', minLat: 26.45, maxLat: 26.7, minLon: 56.35, maxLon: 56.6 },
   { name: 'Bab el-Mandeb', minLat: 12.5, maxLat: 12.8, minLon: 43.25, maxLon: 43.55 },
   { name: 'Suez Canal', minLat: 29.92, maxLat: 31.27, minLon: 32.28, maxLon: 32.7 },
   { name: 'Strait of Malacca', minLat: 1.3, maxLat: 2.5, minLon: 101.2, maxLon: 102.6 },

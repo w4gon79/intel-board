@@ -111,7 +111,7 @@ const REGION_COORDS: Record<string, [number, number]> = {
   'caucasus': [44.0, 42.0],
   'afghanistan': [66.0, 33.0],
   // Oceans / choke points
-  'strait of hormuz': [56.75, 26.5],
+  'strait of hormuz': [56.35, 26.5],
   'suez canal': [32.3, 30.0],
   'bab el-mandeb': [43.3, 12.6],
   'malacca strait': [101.5, 2.5],
