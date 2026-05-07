@@ -953,18 +953,20 @@ ${articleText.substring(0, 16000)}`
     const shipIndex = articleText.indexOf(flagshipName)
     if (shipIndex === -1) continue
 
-    // Get surrounding context (500 chars before and after the mention)
-    const contextStart = Math.max(0, shipIndex - 500)
-    const contextEnd = Math.min(articleText.length, shipIndex + 500)
-    const context = articleText.substring(contextStart, contextEnd)
+    // Get the SAME SENTENCE as the ship mention, not a broad window.
+    // A 500-char window picks up port names from adjacent sentences about OTHER ships
+    // (e.g. Makin Island "returned to San Diego" tainting Roosevelt "operating in Eastern Pacific").
+    const sentenceStart = articleText.lastIndexOf('.', shipIndex) + 1
+    const sentenceEnd = articleText.indexOf('.', shipIndex + flagshipName.length)
+    const sentence = articleText.substring(sentenceStart, sentenceEnd === -1 ? articleText.length : sentenceEnd + 1)
 
-    // Check for port patterns in this context
+    // Check for port patterns only within the same sentence
     for (const { pattern, area } of PORT_PATTERNS) {
-      const portMatch = pattern.exec(context)
+      const portMatch = pattern.exec(sentence)
       if (!portMatch) continue
 
       // Get text before the port mention (60 chars) to check for homeport references
-      const portContextBefore = context.substring(Math.max(0, portMatch.index - 60), portMatch.index).toLowerCase()
+      const portContextBefore = sentence.substring(Math.max(0, portMatch.index - 60), portMatch.index).toLowerCase()
 
       // Skip if this is clearly a homeport reference, not a current location
       if (/\bhome[\s-]?port\b|\bbased\s+(in|out\s+of)\b|\bfrom\b/.test(portContextBefore)) {
