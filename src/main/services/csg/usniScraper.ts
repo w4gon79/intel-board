@@ -922,9 +922,11 @@ ${articleText.substring(0, 16000)}`
   }
 
   // Post-AI area correction: override generic areas when article mentions specific ports
+  // Only override when the AI gave a truly vague area with no direction or specificity.
+  // "eastern pacific" and "western pacific" are REAL operating areas, not generic.
+  // Never override them.
   const GENERIC_AREAS = new Set([
-    'eastern pacific', 'western pacific', 'pacific', 'atlantic',
-    'indian ocean', 'southern ocean', 'arctic'
+    'pacific', 'atlantic', 'indian ocean', 'southern ocean', 'arctic'
   ])
 
   const PORT_PATTERNS: Array<{ pattern: RegExp; area: string }> = [
