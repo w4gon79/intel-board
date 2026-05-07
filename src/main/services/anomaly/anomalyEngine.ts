@@ -53,7 +53,7 @@ export interface ChokePoint {
 }
 
 export const CHOKE_POINTS: ChokePoint[] = [
-  { name: 'Strait of Hormuz', centerLat: 26.56, centerLon: 56.25, radiusKm: 50 },
+  { name: 'Strait of Hormuz', centerLat: 26.56, centerLon: 56.75, radiusKm: 50 },
   { name: 'Suez Canal', centerLat: 30.46, centerLon: 32.35, radiusKm: 30 },
   { name: 'Panama Canal', centerLat: 9.08, centerLon: -79.68, radiusKm: 30 },
   { name: 'Taiwan Strait', centerLat: 24.5, centerLon: 119.0, radiusKm: 60 },

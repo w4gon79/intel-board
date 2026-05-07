@@ -46,10 +46,10 @@ const PURGE_INTERVAL_MS = 30 * 60 * 1000  // 30 minutes
 export const CHOKE_POINTS = [
   {
     name: 'Strait of Hormuz',
-    lat: 26.56, lon: 56.25, radiusKm: 75,
+    lat: 26.56, lon: 56.75, radiusKm: 75,
     transitCorridor: {
       minLat: 26.45, maxLat: 26.70,
-      minLon: 56.25, maxLon: 56.50
+      minLon: 56.75, maxLon: 57.00
     }
   },
   {
