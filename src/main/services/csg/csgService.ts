@@ -182,13 +182,13 @@ export function startCsgScheduler(): void {
 
   // AIS match timer removed — AIS matching disabled for CSG/ARG vessels
 
-  // USNI scrape: once per week (7 days)
+  // USNI scrape: once per day (24 hours)
   if (!weeklyScrapeTimer) {
     weeklyScrapeTimer = setInterval(() => {
       scrapeUsniFleetTracker().catch((err) => {
-        console.error('[CSG] Weekly scrape error:', err instanceof Error ? err.message : String(err))
+        console.error('[CSG] Daily scrape error:', err instanceof Error ? err.message : String(err))
       })
-    }, 7 * 24 * 60 * 60 * 1000)
+    }, 24 * 60 * 60 * 1000)
 
     // Run initial scrape on startup (don't wait 7 days for first data)
     scrapeUsniFleetTracker().catch((err) => {
@@ -201,12 +201,12 @@ export function startCsgScheduler(): void {
     })
   }
 
-  // Also run TWZ on the weekly interval
+  // Also run TWZ on the daily interval
   setInterval(() => {
     scrapeTwzCarrierTracker().catch((err) => {
       console.error('[CSG] TWZ scrape error:', err instanceof Error ? err.message : String(err))
     })
-  }, 7 * 24 * 60 * 60 * 1000)
+  }, 24 * 60 * 60 * 1000)
 }
 
 /** Stop the CSG scheduler */
