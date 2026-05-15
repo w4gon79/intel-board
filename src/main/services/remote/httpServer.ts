@@ -80,6 +80,16 @@ import { getActiveConflictZones, getZoneDetail, getZoneHistory, runZoneEngine } 
 // Social Media (Phase 5A)
 import { getSocialPosts, getSocialStats, pollReddit, pollBlueSky } from '../sources/socialMediaService'
 
+// Map Annotations (Tactical Overlay)
+import {
+  createAnnotation,
+  getAnnotations,
+  updateAnnotation,
+  deleteAnnotation,
+  getAnnotationLayers
+} from '../storage/dbService'
+import type { InsertAnnotation, MapAnnotation } from '../../../shared/types'
+
 // Prediction
 import { getRecentLogLines } from '../../utils/logger'
 
@@ -1254,6 +1264,55 @@ Provide a concise intelligence brief including:
       }
     })
 
+    // ── Map Annotations (Tactical Overlay) ──
+    app.get('/api/annotations', (req, res) => {
+      try {
+        const layer = req.query.layer as string | undefined
+        res.json(getAnnotations(layer))
+      } catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list annotations' })
+      }
+    })
+
+    app.post('/api/annotations', (req, res) => {
+      try {
+        const data = req.body as InsertAnnotation
+        const annotation = createAnnotation(data)
+        res.json(annotation)
+      } catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create annotation' })
+      }
+    })
+
+    app.put('/api/annotations/:id', (req, res) => {
+      try {
+        const id = req.params.id
+        const updates = req.body as Partial<Pick<MapAnnotation, 'label' | 'description' | 'color' | 'coordinates' | 'visible' | 'layer' | 'icon'>>
+        const success = updateAnnotation(id, updates)
+        res.json({ success })
+      } catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update annotation' })
+      }
+    })
+
+    app.delete('/api/annotations/:id', (req, res) => {
+      try {
+        const id = req.params.id
+        const success = deleteAnnotation(id)
+        res.json({ success })
+      } catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete annotation' })
+      }
+    })
+
+    app.get('/api/annotations/layers', (_req, res) => {
+      try {
+        res.json(getAnnotationLayers())
+      } catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to get layers' })
+      }
+    })
+
     // ── Static files (renderer) ──
     const rendererPath = join(__dirname, '../renderer')
 
@@ -1300,6 +1359,50 @@ Provide a concise intelligence brief including:
         /<meta[^>]*Content-Security-Policy[^>]*>/i,
         '<meta http-equiv="Content-Security-Policy" content="default-src * data: blob: \'unsafe-inline\' \'unsafe-eval\'; worker-src blob: \'self\';">'
       )
+
+      // Inject remote API polyfill for annotations (Electron IPC not available in browser)
+      const annotationsPolyfill = `<script>
+(function() {
+  if (window.api && window.api.annotations) return; // Already available via Electron
+  console.log('[Remote] Polyfilling window.api.annotations via HTTP');
+  if (!window.api) window.api = {};
+  window.api.annotations = {
+    list: async (layer) => {
+      const url = layer ? '/api/annotations?layer=' + encodeURIComponent(layer) : '/api/annotations';
+      const resp = await fetch(url);
+      return resp.json();
+    },
+    create: async (data) => {
+      const resp = await fetch('/api/annotations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return resp.json();
+    },
+    update: async (id, updates) => {
+      const resp = await fetch('/api/annotations/' + encodeURIComponent(id), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      return resp.json();
+    },
+    delete: async (id) => {
+      const resp = await fetch('/api/annotations/' + encodeURIComponent(id), {
+        method: 'DELETE'
+      });
+      return resp.json();
+    },
+    getLayers: async () => {
+      const resp = await fetch('/api/annotations/layers');
+      return resp.json();
+    }
+  };
+})();
+</script>`
+      html = html.replace('</head>', annotationsPolyfill + '\n</head>')
+
       res.setHeader('Content-Type', 'text/html')
       res.send(html)
     })

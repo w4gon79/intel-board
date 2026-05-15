@@ -272,6 +272,17 @@ function buildHttpApi(): any {
       history: () => jsonFetch(`${API_BASE}/zones/history`),
       refresh: () => post(`${API_BASE}/zones/refresh`, {})
     },
+    annotations: {
+      list: (layer?: string) =>
+        jsonFetch(layer ? `${API_BASE}/annotations?layer=${encodeURIComponent(layer)}` : `${API_BASE}/annotations`),
+      create: (data: Record<string, unknown>) =>
+        post(`${API_BASE}/annotations`, data),
+      update: (id: string, updates: Record<string, unknown>) =>
+        put(`${API_BASE}/annotations/${encodeURIComponent(id)}`, updates),
+      delete: (id: string) =>
+        jsonFetch(`${API_BASE}/annotations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+      getLayers: () => jsonFetch(`${API_BASE}/annotations/layers`)
+    },
     logger: {
       getRecent: (lines?: number) =>
         jsonFetch(`${API_BASE}/logger/recent?lines=${lines || 100}`)
