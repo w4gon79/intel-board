@@ -18,6 +18,12 @@ export default defineConfig({
         '@renderer': resolve('src/renderer/src')
       }
     },
+    // maplibre-gl v6 is ESM-only and ships its own worker; the Vite dev
+    // optimizer cannot prebundle it (maplibre-gl-worker.mjs missing error,
+    // blank map) so exclude it from optimizeDeps.
+    optimizeDeps: {
+      exclude: ['maplibre-gl']
+    },
     plugins: [tailwindcss(), react()]
   }
 })
