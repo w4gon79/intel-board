@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { Popup } from 'maplibre-gl'
-import type { Map } from 'maplibre-gl'
+import type { Map, GeoJSONSource } from 'maplibre-gl'
 
 interface Props {
   map: Map
@@ -322,7 +322,7 @@ export default function ConflictZoneLayer({ map, visible }: Props) {
       features
     }
 
-    const source = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined
+    const source = map.getSource(SOURCE_ID) as GeoJSONSource | undefined
     if (source) {
       source.setData(geojson)
     }

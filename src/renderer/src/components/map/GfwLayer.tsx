@@ -1,17 +1,17 @@
-/**
- * GfwLayer – Renders GFW (Global Fishing Watch) vessel presence data on the map.
+﻿/**
+ * GfwLayer â€“ Renders GFW (Global Fishing Watch) vessel presence data on the map.
  *
  * Shows two types of data:
- *   1. Presence data (public-global-presence) – colored circles sized by vessel count
- *   2. SAR dark vessel data (public-global-sar-presence) – red diamond markers
+ *   1. Presence data (public-global-presence) â€“ colored circles sized by vessel count
+ *   2. SAR dark vessel data (public-global-sar-presence) â€“ red diamond markers
  *
  * Data is supplemental (~96h lag), not real-time. Labels clearly indicate this.
  */
 
 import { useEffect, useRef, useState } from 'react'
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
 
-// ─── Layer / source IDs ──────────────────────────────────────
+// â”€â”€â”€ Layer / source IDs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const PRESENCE_SOURCE_ID = 'gfw-presence-geojson'
 const SAR_SOURCE_ID = 'gfw-sar-geojson'
@@ -23,7 +23,7 @@ const SAR_LABEL_LAYER_ID = 'gfw-sar-labels'
 const ALL_LAYER_IDS = [PRESENCE_LAYER_ID, PRESENCE_LABEL_LAYER_ID, SAR_LAYER_ID, SAR_LABEL_LAYER_ID]
 const ALL_SOURCE_IDS = [PRESENCE_SOURCE_ID, SAR_SOURCE_ID]
 
-// ─── Types ───────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface GfwProperties {
   id: string
@@ -49,7 +49,7 @@ interface GfwFeatureCollection {
 
 const EMPTY_FC: GfwFeatureCollection = { type: 'FeatureCollection', features: [] }
 
-// ─── Props ───────────────────────────────────────────────────
+// â”€â”€â”€ Props â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface GfwLayerProps {
   map: maplibregl.Map | null
@@ -57,7 +57,7 @@ interface GfwLayerProps {
   showSar?: boolean
 }
 
-// ─── Component ───────────────────────────────────────────────
+// â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function GfwLayer({
   map,
@@ -68,7 +68,7 @@ export default function GfwLayer({
   const popupRef = useRef<maplibregl.Popup | null>(null)
   const sourcesAddedRef = useRef(false)
 
-  // ── Fetch GFW data via IPC (Electron) or HTTP (browser) ──────
+  // â”€â”€ Fetch GFW data via IPC (Electron) or HTTP (browser) â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     async function fetchData(): Promise<void> {
@@ -76,10 +76,10 @@ export default function GfwLayer({
         let result: any[]
 
         if ((window as any).api?.gfw) {
-          // Electron context — use preload bridge
+          // Electron context â€” use preload bridge
           result = await (window as any).api.gfw.getPresence()
         } else {
-          // Browser context — use HTTP API
+          // Browser context â€” use HTTP API
           const response = await fetch(`${window.location.origin}/api/gfw/presence`)
           if (!response.ok) return
           const data = await response.json()
@@ -121,7 +121,7 @@ export default function GfwLayer({
     return () => clearInterval(interval)
   }, [])
 
-  // ── Add GeoJSON source + layers ──────────────────────────
+  // â”€â”€ Add GeoJSON source + layers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     if (!map) return
@@ -137,7 +137,7 @@ export default function GfwLayer({
     const presenceFeatures = data.features.filter((f) => f.properties.dataset === 'presence')
     const sarFeatures = data.features.filter((f) => f.properties.dataset === 'sar')
 
-    // ── Presence source (regular AIS + satellite AIS) ──
+    // â”€â”€ Presence source (regular AIS + satellite AIS) â”€â”€
     map.addSource(PRESENCE_SOURCE_ID, {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: presenceFeatures },
@@ -206,7 +206,7 @@ export default function GfwLayer({
       }
     })
 
-    // ── SAR source (dark vessel detections) ──
+    // â”€â”€ SAR source (dark vessel detections) â”€â”€
     map.addSource(SAR_SOURCE_ID, {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: sarFeatures },
@@ -234,7 +234,7 @@ export default function GfwLayer({
       source: SAR_SOURCE_ID,
       minzoom: 3,
       layout: {
-        'text-field': '⚠ SAR Detection',
+        'text-field': 'âš  SAR Detection',
         'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
         'text-size': 10,
         'text-offset': [0, 1.4],
@@ -249,7 +249,7 @@ export default function GfwLayer({
       }
     })
 
-    // ── Add custom SAR diamond icon ──
+    // â”€â”€ Add custom SAR diamond icon â”€â”€
     try {
       const diamondSize = 16
       const canvas = document.createElement('canvas')
@@ -288,7 +288,7 @@ export default function GfwLayer({
       console.warn('[GfwLayer] Failed to create diamond icon:', err)
     }
 
-    // ── Click handlers for popups ──
+    // â”€â”€ Click handlers for popups â”€â”€
     for (const layerId of [PRESENCE_LAYER_ID, SAR_LAYER_ID]) {
       map.on('click', layerId, (e) => {
         const features = e.features
@@ -316,7 +316,7 @@ export default function GfwLayer({
       })
     }
 
-    // ── Apply initial visibility ──
+    // â”€â”€ Apply initial visibility â”€â”€
     const vis = visible ? 'visible' : 'none'
     for (const layerId of [PRESENCE_LAYER_ID, PRESENCE_LABEL_LAYER_ID]) {
       if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', vis)
@@ -339,7 +339,7 @@ export default function GfwLayer({
     }
   }, [map])
 
-  // ── Update source data when data changes ─────────────────
+  // â”€â”€ Update source data when data changes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     if (!map || !sourcesAddedRef.current) return
@@ -358,7 +358,7 @@ export default function GfwLayer({
     }
   }, [data, map])
 
-  // ── Toggle visibility ────────────────────────────────────
+  // â”€â”€ Toggle visibility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     if (!map) return
@@ -377,13 +377,13 @@ export default function GfwLayer({
   return <></>
 }
 
-// ─── Popup HTML builder ──────────────────────────────────────
+// â”€â”€â”€ Popup HTML builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function buildPopupHtml(p: GfwProperties): string {
   const isSar = p.dataset === 'sar'
   const badge = isSar
-    ? '<span style="color:#ff2222;font-weight:bold;font-size:11px;">⚠ DARK VESSEL (SAR)</span>'
-    : '<span style="color:#4a9eff;font-size:11px;">📡 GFW Presence</span>'
+    ? '<span style="color:#ff2222;font-weight:bold;font-size:11px;">âš  DARK VESSEL (SAR)</span>'
+    : '<span style="color:#4a9eff;font-size:11px;">ðŸ“¡ GFW Presence</span>'
 
   // flags may be a plain string (new FLAG-grouped format) or a JSON array (legacy)
   let flags = 'Unknown'
@@ -408,7 +408,7 @@ function buildPopupHtml(p: GfwProperties): string {
     <div style="font-family:system-ui;color:#e0e0e0;background:#1e1e1e;padding:8px;font-size:13px;line-height:1.5;">
       <div style="font-size:14px;font-weight:700;margin-bottom:2px;">${p.chokepoint}</div>
       ${badge}
-      <div style="font-size:10px;color:#888;margin-top:2px;">⚠ Supplemental data (~96h lag)</div>
+      <div style="font-size:10px;color:#888;margin-top:2px;">âš  Supplemental data (~96h lag)</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;">
         <tr><td style="color:#9e9e9e;">Vessels</td><td style="text-align:right;">${vesselCount}</td></tr>
         <tr><td style="color:#9e9e9e;">Total Hours</td><td style="text-align:right;">${hours.toFixed(1)}</td></tr>

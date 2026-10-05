@@ -1,10 +1,10 @@
-/**
- * TransitCorridorLayer — renders semi-transparent bounding boxes
+﻿/**
+ * TransitCorridorLayer â€” renders semi-transparent bounding boxes
  * over major maritime choke points / transit corridors.
  */
 
 import { useEffect, useRef } from 'react'
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
 import { TRANSIT_CORRIDORS } from '../../../../shared/regions'
 
 const SOURCE_ID = 'transit-corridors'
@@ -17,7 +17,7 @@ interface TransitCorridorLayerProps {
   visible: boolean
 }
 
-// Only transit corridors (choke point shipping lanes) — not broad region areas
+// Only transit corridors (choke point shipping lanes) â€” not broad region areas
 const CORRIDORS = TRANSIT_CORRIDORS
 
 function buildCorridorGeoJSON(): GeoJSON.FeatureCollection {
@@ -127,11 +127,11 @@ export function TransitCorridorLayer({ map, visible }: TransitCorridorLayerProps
             .setHTML(
               `<div style="font-family:system-ui;color:#e0e0e0;background:#1e1e1e;padding:8px;font-size:13px;line-height:1.5;">` +
                 `<div style="font-size:14px;font-weight:700;color:#f97316;">${name}</div>` +
-                `<div style="font-size:11px;color:#a1a1aa;margin-top:2px;">Transit Corridor — SHIPPING LANE</div>` +
+                `<div style="font-size:11px;color:#a1a1aa;margin-top:2px;">Transit Corridor â€” SHIPPING LANE</div>` +
                 `<div style="margin-top:8px;border-top:1px solid #333;padding-top:6px">` +
                 `<button class="chokepoint-brief-btn" data-type="chokepoint" data-brief="${briefData}" ` +
                 `style="background:#2563eb;color:white;border:none;border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer;width:100%">` +
-                `🔍 Generate Brief</button></div></div>`
+                `ðŸ” Generate Brief</button></div></div>`
             )
             .addTo(map)
 
