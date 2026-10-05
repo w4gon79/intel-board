@@ -28,7 +28,7 @@ Intel Board is a desktop application that aggregates open-source intelligence fr
 - **Prediction Review** — Autonomous review of past predictions using RAG evidence gathering. LLM judges accuracy with cited sources. Calibration data feeds back into future predictions.
 
 ### Visualization
-- **MapLibre dark map** — Dark-themed map with layered overlays: carrier strike groups, flight tracks, conflict zones, ship positions, alert zones, transit corridors, tactical annotations. Uses free CARTO/OpenStreetMap tiles (no API key needed).
+- **MapLibre dark map** — Dark-themed map with layered overlays: carrier strike groups, flight tracks, conflict zones, ship positions, alert zones, transit corridors, tactical annotations. Uses free CARTO/OpenStreetMap tiles (free API key required, see Map section).
 - **Tactical Overlay** — Persistent map annotations with 5 types: markers, lines, polygons, circles, and text labels. Color picker, style options, stored in SQLite.
 - **Dynamic Conflict Zones** — DBSCAN clustering engine creates, maintains, and removes zones based on real-time signals. Zone lifecycle: monitoring → active → escalating → fading → resolved. Decay factor prevents stale zones.
 - **Carrier Strike Group tracking** — Live CSG/ARG positions with vessel breakdowns, operating areas, and staleness indicators
@@ -142,7 +142,7 @@ ollama pull qwen2.5:3b         # Chat model (or any model you prefer)
 
 ### Map
 
-Uses free CARTO/OpenStreetMap dark tiles. No API key or configuration needed.
+Uses CARTO/OpenStreetMap dark tiles. CARTO now requires an API key for basemap tiles (free tier, no credit card): get one at https://carto.com/basemaps/apikey and add it under Settings → API Keys → Map Tiles. Without a key the map still loads but tiles carry an "API KEY REQUIRED" watermark.
 
 ## Scripts
 
@@ -278,7 +278,7 @@ All data lives in `data/intel-board.db`.
 | Framework | Electron + electron-vite |
 | UI | React + TypeScript + Tailwind CSS |
 | Database | SQLite (better-sqlite3) |
-| Map | MapLibre GL JS + CARTO dark tiles (free, no API key) |
+| Map | MapLibre GL JS + CARTO dark tiles (free API key) |
 | AI | Ollama (local) and/or OpenAI-compatible APIs |
 | Vector Search | JSON-stored embeddings + cosine similarity |
 | Scraping | Custom HTTP + AI-powered extraction |

@@ -100,6 +100,7 @@ export interface AppSettings {
     aisstreamApiKey: string
     gfwApiToken: string
     fredApiKey: string
+    cartoApiKey: string
     zaiApiKey: string
     zaiBaseUrl: string
   }
@@ -205,6 +206,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     aisstreamApiKey: '',
     gfwApiToken: '',
     fredApiKey: '',
+    cartoApiKey: '',
     zaiApiKey: '',
     zaiBaseUrl: 'https://api.z.ai/api/coding/paas/v4'
   },
@@ -373,6 +375,7 @@ function maskApiKeys(settings: AppSettings): AppSettings {
       aisstreamApiKey: settings.apiKeys.aisstreamApiKey ? MASK : '',
       gfwApiToken: settings.apiKeys.gfwApiToken ? MASK : '',
       fredApiKey: settings.apiKeys.fredApiKey ? MASK : '',
+      cartoApiKey: settings.apiKeys.cartoApiKey ? MASK : '',
       zaiApiKey: settings.apiKeys.zaiApiKey ? MASK : '',
       // zaiBaseUrl is NOT secret — show it as-is
       zaiBaseUrl: settings.apiKeys.zaiBaseUrl
@@ -406,6 +409,7 @@ export function mergeApiKeys(
     aisstreamApiKey: isMasked(incoming.aisstreamApiKey) ? previous.aisstreamApiKey : incoming.aisstreamApiKey,
     gfwApiToken: isMasked(incoming.gfwApiToken) ? previous.gfwApiToken : incoming.gfwApiToken,
     fredApiKey: isMasked(incoming.fredApiKey) ? previous.fredApiKey : incoming.fredApiKey,
+    cartoApiKey: isMasked(incoming.cartoApiKey) ? previous.cartoApiKey : incoming.cartoApiKey,
     zaiApiKey: isMasked(incoming.zaiApiKey) ? previous.zaiApiKey : incoming.zaiApiKey,
     zaiBaseUrl: incoming.zaiBaseUrl || previous.zaiBaseUrl
   }
@@ -472,6 +476,12 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle('settings:get', () => {
     const settings = loadSettings()
     return maskApiKeys(settings)
+  })
+
+  // Return the raw CARTO basemap key to the renderer (tile URLs need the real
+  // value; basemap keys are low-sensitivity and never leave the client)
+  ipcMain.handle('settings:getCartoKey', () => {
+    return loadSettings().apiKeys.cartoApiKey || ''
   })
 
   // Save settings

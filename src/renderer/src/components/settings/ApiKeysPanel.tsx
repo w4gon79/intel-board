@@ -84,6 +84,16 @@ const KEY_FIELDS: KeyField[] = [
     signupLabel: 'fred.stlouisfed.org',
     group: 'Economic Data (Optional)'
   },
+  // Group: Map Tiles
+  {
+    key: 'cartoApiKey',
+    label: 'CARTO API Key',
+    type: 'password',
+    helper: 'Required for basemap tiles. Free, removes watermark.',
+    signupUrl: 'https://carto.com/basemaps/apikey/',
+    signupLabel: 'carto.com/basemaps/apikey',
+    group: 'Map Tiles'
+  }
 
 ]
 
@@ -92,7 +102,8 @@ const GROUP_ORDER = [
   'Flight Tracking (ADS-B)',
   'Ship Tracking (AIS)',
   'Vessel Presence',
-  'Economic Data (Optional)'
+  'Economic Data (Optional)',
+  'Map Tiles'
 ]
 
 // ── Component ───────────────────────────────────────────────────────────────

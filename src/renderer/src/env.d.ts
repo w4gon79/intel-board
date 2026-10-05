@@ -113,6 +113,7 @@ interface Window {
       testOpenaiConnection: (baseUrl: string, apiKey: string) => Promise<{ ok: boolean; error?: string }>
       testAI: (config: { provider: string; ollamaBaseUrl?: string; openaiBaseUrl?: string; openaiApiKey?: string }) => Promise<{ ok: boolean; error?: string; models?: number }>
       testApiKey: (service: string) => Promise<{ ok: boolean; error?: string }>
+      getCartoKey: () => Promise<string>
       testTranslation: (text: string, language: string) => Promise<{ ok: boolean; translation?: string; error?: string }>
     }
 
@@ -425,6 +426,7 @@ declare global {
       aisstreamApiKey: string
       gfwApiToken: string
       fredApiKey: string
+      cartoApiKey: string
       zaiApiKey: string
       zaiBaseUrl: string
     }

@@ -115,6 +115,8 @@ const api = {
       ipcRenderer.invoke('settings:testAI', config),
     /** Test an API key by making a real API call */
     testApiKey: (service: string) => ipcRenderer.invoke('settings:testApiKey', service),
+    /** Get the raw CARTO basemap API key (for map tile URLs) */
+    getCartoKey: () => ipcRenderer.invoke('settings:getCartoKey'),
     /** Test the translation pipeline with a sample phrase */
     testTranslation: (text: string, language: string) =>
       ipcRenderer.invoke('settings:testTranslation', text, language)

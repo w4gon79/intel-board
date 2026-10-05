@@ -19,31 +19,36 @@ import { AnnotationToolbar } from './AnnotationToolbar'
 import type { AnnotationType } from '../../../../shared/types'
 
 
-/** CARTO dark basemap tiles – free, no API key, dark theme. */
-const MAP_STYLE = {
-  version: 8 as const,
-  sources: {
-    'osm-tiles': {
-      type: 'raster' as const,
-      tiles: [
-        'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-        'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-        'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png'
-      ],
-      tileSize: 256,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-    }
-  },
-  layers: [
-    {
-      id: 'osm-tiles-layer',
-      type: 'raster' as const,
-      source: 'osm-tiles',
-      minzoom: 0,
-      maxzoom: 19
-    }
-  ]
+/** CARTO dark basemap tiles - dark theme. Since CARTO's 2025 policy change,
+ * unkeyed raster tiles carry an "API KEY REQUIRED" watermark, so the key from
+ * Settings (Map Tiles group) is appended when present. */
+function buildMapStyle(cartoApiKey: string): maplibregl.StyleSpecification {
+  const suffix = cartoApiKey ? `?key=${encodeURIComponent(cartoApiKey)}` : ''
+  return {
+    version: 8,
+    sources: {
+      'osm-tiles': {
+        type: 'raster' as const,
+        tiles: [
+          `https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png${suffix}`,
+          `https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png${suffix}`,
+          `https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png${suffix}`
+        ],
+        tileSize: 256,
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      }
+    },
+    layers: [
+      {
+        id: 'osm-tiles-layer',
+        type: 'raster' as const,
+        source: 'osm-tiles',
+        minzoom: 0,
+        maxzoom: 19
+      }
+    ]
+  }
 }
 
 /** Center: Eastern Mediterranean / broader MENA (PRD-style "situation" view). */
@@ -69,6 +74,8 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const briefPopupRef = useRef<maplibregl.Popup | null>(null)
+  // Last CARTO key applied to the map style (avoids redundant setStyle calls)
+  const appliedCartoKeyRef = useRef<string>('')
   const [mapReady, setMapReady] = useState(false)
   const [cursorCoords, setCursorCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [drawBanner, setDrawBanner] = useState<string | null>(null)
@@ -80,50 +87,72 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
   useEffect(() => {
     if (!containerRef.current) return
 
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: MAP_STYLE,
-      center: DEFAULT_CENTER,
-      zoom: DEFAULT_ZOOM,
-      attributionControl: undefined,
-      preserveDrawingBuffer: true
-    } as maplibregl.MapOptions)
+    let disposed = false
+    let map: maplibregl.Map | null = null
+    let resize: (() => void) | null = null
+    let ro: ResizeObserver | null = null
 
-    mapRef.current = map
-    // Store map in per-instance array so the export handler can find the
-    // VISIBLE (desktop) map even when two SituationMaps are mounted.
-    if (!(window as any).__maps) (window as any).__maps = []
-    ;(window as any).__maps.push({ map, container: containerRef.current })
-    // Register draw banner callback for MapDrawLayer
-    ;(window as any).__alertDrawBanner = (msg: string | null) => setDrawBanner(msg)
+    const createMap = (cartoKey: string): void => {
+      if (disposed || !containerRef.current) return
+      appliedCartoKeyRef.current = cartoKey
 
-    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
-    map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }), 'bottom-left')
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: buildMapStyle(cartoKey),
+        center: DEFAULT_CENTER,
+        zoom: DEFAULT_ZOOM,
+        attributionControl: undefined,
+        preserveDrawingBuffer: true
+      } as maplibregl.MapOptions)
 
-    map.on('load', () => {
-      setMapReady(true)
-    })
+      mapRef.current = map
+      // Store map in per-instance array so the export handler can find the
+      // VISIBLE (desktop) map even when two SituationMaps are mounted.
+      if (!(window as any).__maps) (window as any).__maps = []
+      ;(window as any).__maps.push({ map, container: containerRef.current })
+      // Register draw banner callback for MapDrawLayer
+      ;(window as any).__alertDrawBanner = (msg: string | null) => setDrawBanner(msg)
 
-    map.on('mousemove', (e: maplibregl.MapMouseEvent) => {
-      setCursorCoords({ lat: e.lngLat.lat, lng: e.lngLat.lng })
-    })
+      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right')
+      map.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: 'metric' }), 'bottom-left')
 
-    map.on('mouseout', () => {
-      setCursorCoords(null)
-    })
+      map.on('load', () => {
+        setMapReady(true)
+      })
 
-    const resize = (): void => {
-      map.resize()
+      map.on('mousemove', (e: maplibregl.MapMouseEvent) => {
+        setCursorCoords({ lat: e.lngLat.lat, lng: e.lngLat.lng })
+      })
+
+      map.on('mouseout', () => {
+        setCursorCoords(null)
+      })
+
+      resize = (): void => {
+        map?.resize()
+      }
+      window.addEventListener('resize', resize)
+      ro = new ResizeObserver(resize)
+      ro.observe(containerRef.current)
+      requestAnimationFrame(resize)
     }
-    window.addEventListener('resize', resize)
-    const ro = new ResizeObserver(resize)
-    ro.observe(containerRef.current)
-    requestAnimationFrame(resize)
+
+    // Fetch the CARTO key before creating the map so tiles are keyed from the
+    // very first request; fall back to unkeyed (watermarked) tiles on failure.
+    if (window.api?.settings?.getCartoKey) {
+      window.api.settings
+        .getCartoKey()
+        .then((key: string) => createMap(key || ''))
+        .catch(() => createMap(''))
+    } else {
+      createMap('')
+    }
 
     return () => {
-      window.removeEventListener('resize', resize)
-      ro.disconnect()
-      map.remove()
+      disposed = true
+      if (resize) window.removeEventListener('resize', resize)
+      ro?.disconnect()
+      map?.remove()
       mapRef.current = null
       // Remove this instance from the maps array
       ;(window as any).__maps = ((window as any).__maps || []).filter(
@@ -249,6 +278,22 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
       .catch(() => {
         /* ignore */
       })
+    // Live-apply the CARTO key: diffed style update only swaps the raster
+    // source tiles, leaving flight/ship/intel layers untouched.
+    if (window.api?.settings?.getCartoKey) {
+      window.api.settings
+        .getCartoKey()
+        .then((key: string) => {
+          const k = key || ''
+          if (k !== appliedCartoKeyRef.current && mapRef.current && mapRef.current.isStyleLoaded()) {
+            appliedCartoKeyRef.current = k
+            mapRef.current.setStyle(buildMapStyle(k), { diff: true })
+          }
+        })
+        .catch(() => {
+          /* ignore */
+        })
+    }
   }, [])
 
   const handleRegionChange = useCallback(
