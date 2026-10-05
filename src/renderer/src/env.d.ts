@@ -1,4 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+﻿// eslint-disable-next-line @typescript-eslint/no-require-imports
 type SharedTypes = typeof import('../shared/types')
 
 interface DatabaseStatus {
@@ -10,17 +10,17 @@ interface DatabaseStatus {
 interface Window {
   electron: import('@electron-toolkit/preload').ElectronAPI
   api: {
-    // ── Database ──
+    // â”€â”€ Database â”€â”€
     db: {
       getStatus: () => Promise<DatabaseStatus>
     }
 
-    // ── Vector Store ──
+    // â”€â”€ Vector Store â”€â”€
     vectordb: {
       getStatus: () => Promise<{ connected: boolean; collections: string[] }>
     }
 
-    // ── Ingestion ──
+    // â”€â”€ Ingestion â”€â”€
     ingestion: {
       start: () => Promise<{ success: boolean }>
       stop: () => Promise<{ success: boolean }>
@@ -29,7 +29,7 @@ interface Window {
       search: (query: string) => Promise<unknown>
     }
 
-    // ── Articles ──
+    // â”€â”€ Articles â”€â”€
     articles: {
       getAll: (limit?: number, offset?: number) => Promise<unknown[]>
       getById: (id: string) => Promise<unknown>
@@ -39,7 +39,7 @@ interface Window {
       getCount: () => Promise<number>
     }
 
-    // ── Intel Items ──
+    // â”€â”€ Intel Items â”€â”€
     intel: {
       getRecent: (limit?: number, offset?: number) => Promise<SharedTypes['IntelItem']>
       getCount: () => Promise<number>
@@ -49,13 +49,13 @@ interface Window {
       deleteByIds: (ids: string[]) => Promise<{ success: boolean; deleted?: number }>
     }
 
-    // ── Anomalies ──
+    // â”€â”€ Anomalies â”€â”€
     anomalies: {
       getActive: (limit?: number) => Promise<SharedTypes['Anomaly'][]>
       getCount: () => Promise<number>
     }
 
-    // ── Predictions ──
+    // â”€â”€ Predictions â”€â”€
     predictions: {
       getUnresolved: (limit?: number) => Promise<SharedTypes['Prediction'][]>
       getWithReviews: (limit?: number) => Promise<unknown[]>
@@ -70,7 +70,7 @@ interface Window {
       getReviewStats: () => Promise<unknown>
     }
 
-    // ── RAG Pipeline ──
+    // â”€â”€ RAG Pipeline â”€â”€
     rag: {
       query: (request: SharedTypes['RAGRequest']) => Promise<SharedTypes['RAGResponse']>
       quickAnalysis: (topic: string, region?: string) => Promise<unknown>
@@ -78,7 +78,7 @@ interface Window {
       status: () => Promise<{ ollamaRunning: boolean; embeddingModel: string }>
     }
 
-    // ── AI Chat ──
+    // â”€â”€ AI Chat â”€â”€
     ai: {
       chat: (message: string) => Promise<{
         id: number
@@ -104,7 +104,7 @@ interface Window {
       clearHistory: () => Promise<{ success: boolean; error?: string }>
     }
 
-    // ── Settings ──
+    // â”€â”€ Settings â”€â”€
     settings: {
       get: () => Promise<AppSettings>
       save: (settings: AppSettings) => Promise<{ success: boolean; error?: string }>
@@ -117,7 +117,7 @@ interface Window {
       testTranslation: (text: string, language: string) => Promise<{ ok: boolean; translation?: string; error?: string }>
     }
 
-    // ── ADS-B ──
+    // â”€â”€ ADS-B â”€â”€
     adsb: {
       getMarkers: () => Promise<unknown[]>
       getGeoJSON: () => Promise<unknown>
@@ -135,7 +135,7 @@ interface Window {
       onCredentialsError: (callback: (info: { message: string }) => void) => () => void
     }
 
-    // ── Aircraft Identification (Phase 4A) ──
+    // â”€â”€ Aircraft Identification (Phase 4A) â”€â”€
     aircraft: {
       /** Manually lookup an ICAO24 hex code (may trigger network call) */
       lookup: (icao24: string, callsign?: string) => Promise<{
@@ -161,7 +161,7 @@ interface Window {
       } | null>
     }
 
-    // ── AIS ──
+    // â”€â”€ AIS â”€â”€
     ais: {
       getMarkers: () => Promise<unknown[]>
       getGeoJSON: () => Promise<unknown>
@@ -177,7 +177,7 @@ interface Window {
       onFeedHealthUpdated: (callback: (health: { connected: boolean; lastMessageAgeMs: number; feedAlive: boolean }) => void) => () => void
     }
 
-    // ── Global Fishing Watch (Phase 4I) ──
+    // â”€â”€ Global Fishing Watch (Phase 4I) â”€â”€
     gfw: {
       /** Get latest GFW presence data for all choke points */
       getPresence: () => Promise<GfwPresenceRow[]>
@@ -189,7 +189,7 @@ interface Window {
       triggerPoll: () => Promise<{ success: boolean; error?: string }>
     }
 
-    // ── Vessel Identification (Phase 4B) ──
+    // â”€â”€ Vessel Identification (Phase 4B) â”€â”€
     vessel: {
       lookup: (mmsi: string, shipName?: string, shipType?: string) => Promise<{
         mmsi: string
@@ -217,7 +217,7 @@ interface Window {
       } | null>
     }
 
-    // ── Social Media (Phase 5A) ──
+    // â”€â”€ Social Media (Phase 5A) â”€â”€
     social: {
       getPosts: (limit?: number, source?: 'reddit' | 'bluesky', sourceDetail?: string) => Promise<unknown[]>
       getStats: () => Promise<{
@@ -230,7 +230,7 @@ interface Window {
       pollBlueSky: () => Promise<{ fetched: number; inserted: number }>
     }
 
-    // ── Economic Monitoring (Phase 5B) ──
+    // â”€â”€ Economic Monitoring (Phase 5B) â”€â”€
     economic: {
       poll: () => Promise<{ fetched: number; anomalies: number }>
       getIndicators: () => Promise<EconomicIndicator[]>
@@ -240,7 +240,7 @@ interface Window {
       stop: () => Promise<{ success: boolean }>
     }
 
-    // ── Dynamic Conflict Zones ──
+    // â”€â”€ Dynamic Conflict Zones â”€â”€
     zone: {
       list: () => Promise<unknown[]>
       detail: (id: string) => Promise<unknown>
@@ -248,7 +248,7 @@ interface Window {
       refresh: () => Promise<void>
     }
 
-    // ── NOTAM (Military/Defense Airspace Restrictions) ──
+    // â”€â”€ NOTAM (Military/Defense Airspace Restrictions) â”€â”€
     notam: {
       list: (limit?: number) => Promise<unknown[]>
       byZone: (zoneId: string) => Promise<unknown[]>
@@ -256,7 +256,7 @@ interface Window {
       status: () => Promise<{ running: boolean; lastPoll: string | null; activeCount: number; error: string | null }>
     }
 
-    // ── Alert Rules (Phase 5A) ──
+    // â”€â”€ Alert Rules (Phase 5A) â”€â”€
     alertRules: {
       list: () => Promise<unknown[]>
       create: (rule: Record<string, unknown>) => Promise<unknown>
@@ -265,7 +265,7 @@ interface Window {
       toggle: (id: string) => Promise<unknown>
     }
 
-    // ── Notifications ──
+    // â”€â”€ Notifications â”€â”€
     notifications: {
       sendTest: () => Promise<{
         success: boolean
@@ -274,7 +274,7 @@ interface Window {
       status: () => Promise<Record<string, { enabled: boolean; configured: boolean }>>
     }
 
-    // ── Export ──
+    // â”€â”€ Export â”€â”€
     export: {
       markdown: (options: { tier?: string | null; hoursBack?: number | null }) => Promise<{
         success: boolean
@@ -308,7 +308,7 @@ interface Window {
       }>
     }
 
-    // ── Chat Export ──
+    // â”€â”€ Chat Export â”€â”€
     chatExport: {
       messageMarkdown: (params: {
         content: string
@@ -344,7 +344,7 @@ interface Window {
       conversationPdf: () => Promise<{ success: boolean; filePath?: string; error?: string }>
     }
 
-    // ── Map Annotations (Tactical Overlay) ──
+    // â”€â”€ Map Annotations (Tactical Overlay) â”€â”€
     annotations: {
       list: (layer?: string) => Promise<SharedTypes['MapAnnotation'][]>
       create: (data: Omit<SharedTypes['MapAnnotation'], 'id' | 'created_at' | 'updated_at'>) => Promise<SharedTypes['MapAnnotation']>
@@ -356,7 +356,7 @@ interface Window {
 }
 
 declare global {
-  // App settings — globally available type
+  // App settings ” globally available type
   interface AppSettings {
     dataSources: {
       adsb: { enabled: boolean; intervalMs: number }
@@ -531,3 +531,4 @@ declare global {
 }
 
 export {}
+

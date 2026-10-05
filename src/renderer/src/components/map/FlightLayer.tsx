@@ -1,19 +1,19 @@
-/**
- * FlightLayer – renders live ADS-B aircraft on the map using GeoJSON + Mapbox GL layers.
+﻿/**
+ * FlightLayer “ renders live ADS-B aircraft on the map using GeoJSON + Mapbox GL layers.
  *
  * Architecture:
  *   - Two GeoJSON sources:
  *     1. Main source (non-military, optionally clustered)
- *     2. Military source (never clustered – always individual points)
+ *     2. Military source (never clustered “ always individual points)
  *   - Military aircraft are ALWAYS visible at every zoom level
  *   - Clustering toggle controls the main (non-military) source only
  *   - Circle layer with data-driven styling (color by altitude)
  *
  * Layer IDs:
- *   adsb-clusters         – clustered circles at low zoom (non-military)
- *   adsb-cluster-count    – cluster count label
- *   adsb-unclustered      – individual non-military aircraft points
- *   adsb-military-points  – individual military aircraft (always visible)
+ *   adsb-clusters         “ clustered circles at low zoom (non-military)
+ *   adsb-cluster-count    “ cluster count label
+ *   adsb-unclustered      “ individual non-military aircraft points
+ *   adsb-military-points  “ individual military aircraft (always visible)
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -21,7 +21,7 @@ import type { Map as MapboxMap, GeoJSONSource } from 'maplibre-gl'
 import type { FlightMarker } from '../../../../shared/types'
 import { useGeojsonWorker } from '../../hooks/useGeojsonWorker'
 
-// ─── Layer / source IDs ──────────────────────────────────────
+// â”€â”€â”€ Layer / source IDs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const MAIN_SOURCE_ID = 'adsb-flights'
 const MILITARY_SOURCE_ID = 'adsb-military'
@@ -38,10 +38,10 @@ const HVA_PULSE_LAYER_ID = 'adsb-hva-pulse'
 const MAIN_LAYER_IDS = [CLUSTER_LAYER_ID, CLUSTER_COUNT_LAYER_ID, UNCLUSTERED_LAYER_ID]
 const ALL_LAYER_IDS = [...MAIN_LAYER_IDS, HVA_PULSE_LAYER_ID, MILITARY_LAYER_ID, MILITARY_LABEL_LAYER_ID]
 
-// ─── Generation counter (prevents stale cleanup after key-change remount) ──
+// â”€â”€â”€ Generation counter (prevents stale cleanup after key-change remount) â”€â”€
 let _generation = 0
 
-// ─── Types ───────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface FlightProperties {
   id: string
@@ -71,7 +71,7 @@ interface FlightFeatureCollection {
 
 const EMPTY_FC: FlightFeatureCollection = { type: 'FeatureCollection', features: [] }
 
-// ─── Props ───────────────────────────────────────────────────
+// â”€â”€â”€ Props â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface FlightLayerProps {
   map: MapboxMap | null
@@ -81,7 +81,7 @@ interface FlightLayerProps {
   onFlightSelect?: (flight: FlightMarker) => void
 }
 
-// ─── Component ───────────────────────────────────────────────
+// â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export default function FlightLayer({
   map,
@@ -105,13 +105,13 @@ export default function FlightLayer({
   const PUSH_DEBOUNCE_MS = 3000 // 3 seconds for flights (less data, less aggressive)
   const lastPushLogRef = useRef(0)
 
-  // ─── Subscribe to GeoJSON updates from main process (Electron or HTTP) ──────
+  // â”€â”€â”€ Subscribe to GeoJSON updates from main process (Electron or HTTP) â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     const apiAdsb = (window as any).api?.adsb
 
     if (apiAdsb) {
-      // Electron context — use preload bridge + push subscriptions
+      // Electron context ” use preload bridge + push subscriptions
       apiAdsb
         .getGeoJSON()
         .then((data) => {
@@ -165,7 +165,7 @@ export default function FlightLayer({
         }
       }
     } else {
-      // Browser context — use HTTP polling
+      // Browser context ” use HTTP polling
       async function fetchGeoJSON(): Promise<void> {
         try {
           const res = await fetch(`${window.location.origin}/api/adsb/geojson`)
@@ -198,7 +198,7 @@ export default function FlightLayer({
     }
   }, [map])
 
-  // ─── Add GeoJSON sources + layers once when map is ready ───
+  // â”€â”€â”€ Add GeoJSON sources + layers once when map is ready â”€â”€â”€
 
   useEffect(() => {
     if (!map || sourcesAddedRef.current) return
@@ -232,7 +232,7 @@ export default function FlightLayer({
         (f) => f.properties.is_military !== 1
       )
 
-      // ── Main source (non-military, optionally clustered) ──
+      // â”€â”€ Main source (non-military, optionally clustered) â”€â”€
       map.addSource(MAIN_SOURCE_ID, {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: nonMilitaryFeatures },
@@ -241,7 +241,7 @@ export default function FlightLayer({
         clusterMaxZoom: 7
       })
 
-      // ── Cluster circles (only render when clustering is on) ──
+      // â”€â”€ Cluster circles (only render when clustering is on) â”€â”€
       if (clustering) {
         map.addLayer({
           id: CLUSTER_LAYER_ID,
@@ -289,7 +289,7 @@ export default function FlightLayer({
         })
       }
 
-      // ── Unclustered non-military aircraft ──
+      // â”€â”€ Unclustered non-military aircraft â”€â”€
       map.addLayer({
         id: UNCLUSTERED_LAYER_ID,
         type: 'circle',
@@ -315,14 +315,14 @@ export default function FlightLayer({
         }
       })
 
-      // ── Military source (NEVER clustered – always individual points) ──
+      // â”€â”€ Military source (NEVER clustered “ always individual points) â”€â”€
       map.addSource(MILITARY_SOURCE_ID, {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: militaryFeatures },
         cluster: false
       })
 
-      // ── HVA pulse glow (renders below military circles) ──
+      // â”€â”€ HVA pulse glow (renders below military circles) â”€â”€
       map.addLayer({
         id: HVA_PULSE_LAYER_ID,
         type: 'circle',
@@ -336,7 +336,7 @@ export default function FlightLayer({
         }
       })
 
-      // ── Military aircraft layer – category-colored circles ──
+      // â”€â”€ Military aircraft layer “ category-colored circles â”€â”€
       map.addLayer({
         id: MILITARY_LAYER_ID,
         type: 'circle',
@@ -374,7 +374,7 @@ export default function FlightLayer({
         }
       })
 
-      // ── Military aircraft type labels (visible at zoom 5+) ──
+      // â”€â”€ Military aircraft type labels (visible at zoom 5+) â”€â”€
       map.addLayer({
         id: MILITARY_LABEL_LAYER_ID,
         type: 'symbol',
@@ -396,7 +396,7 @@ export default function FlightLayer({
         }
       })
 
-      // ── Click on cluster → zoom into it ──
+      // â”€â”€ Click on cluster â†’ zoom into it â”€â”€
       if (clustering) {
         map.on('click', CLUSTER_LAYER_ID, (e) => {
           const features = map.queryRenderedFeatures(e.point, {
@@ -415,7 +415,7 @@ export default function FlightLayer({
         })
       }
 
-      // ── Cursor pointers ──
+      // â”€â”€ Cursor pointers â”€â”€
       const interactiveLayers = clustering
         ? [CLUSTER_LAYER_ID, UNCLUSTERED_LAYER_ID, MILITARY_LAYER_ID]
         : [UNCLUSTERED_LAYER_ID, MILITARY_LAYER_ID]
@@ -429,7 +429,7 @@ export default function FlightLayer({
         })
       }
 
-      // ── Apply initial visibility immediately (prevents race with visibility useEffect) ──
+      // â”€â”€ Apply initial visibility immediately (prevents race with visibility useEffect) â”€â”€
       const vis = visible ? 'visible' : 'none'
       for (const layerId of [HVA_PULSE_LAYER_ID, MILITARY_LAYER_ID, MILITARY_LABEL_LAYER_ID]) {
         if (map.getLayer(layerId)) {
@@ -450,7 +450,7 @@ export default function FlightLayer({
 
     // Use try/catch + style.load fallback instead of isStyleLoaded()/on('load').
     // With MapLibre + CARTO tiles, the 'load' event fires early and isStyleLoaded()
-    // returns false while tiles are still loading — causing sources/layers to never be added.
+    // returns false while tiles are still loading ” causing sources/layers to never be added.
     try {
       addSourcesAndLayers()
     } catch {
@@ -481,7 +481,7 @@ export default function FlightLayer({
     }
   }, [map, onFlightSelect, clustering])
 
-  // ─── Re-filter on map pan/zoom (debounced) ────────────────
+  // â”€â”€â”€ Re-filter on map pan/zoom (debounced) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     if (!map || !sourcesAddedRef.current) return
@@ -508,7 +508,7 @@ export default function FlightLayer({
     }
   }, [map, sourcesAddedRef.current, filterADSB])
 
-  // ─── Update data (split military / non-military to separate sources) ──
+  // â”€â”€â”€ Update data (split military / non-military to separate sources) â”€â”€
 
   useEffect(() => {
     if (!map || !sourcesAddedRef.current) return
@@ -541,12 +541,12 @@ export default function FlightLayer({
       )
     }
 
-    // ── Phase 4G: Formation overlay lines ──
+    // â”€â”€ Phase 4G: Formation overlay lines â”€â”€
     // Draw tactical overlay lines for formation events
     updateFormationOverlays(map, militaryFeatures)
   }, [geojson, map])
 
-  // ─── Toggle visibility ────────────────────────────────────
+  // â”€â”€â”€ Toggle visibility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   useEffect(() => {
     if (!map || !sourcesAddedRef.current) return
@@ -585,7 +585,7 @@ export default function FlightLayer({
   return <></>
 }
 
-// ─── Helpers ─────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /** Extract a short military designation from a full aircraft type string. */
 function getShortType(aircraftType: string | null): string {
@@ -662,7 +662,7 @@ function formatSpeed(gs: number | null): string {
   return `${Math.round(gs)} kts`
 }
 
-// ─── Phase 4G: Formation overlay lines ──────────────────────
+// â”€â”€â”€ Phase 4G: Formation overlay lines â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const FORMATION_PREFIX = 'formation-line-'
 
@@ -701,7 +701,7 @@ function updateFormationOverlays(
     groups.get(key)!.push(f)
   }
 
-  // For each group, cluster by proximity (~50nm ≈ ~0.83 degrees) and draw lines
+  // For each group, cluster by proximity (~50nm â‰ˆ ~0.83 degrees) and draw lines
   for (const [category, features] of groups) {
     if (features.length < 2) continue
 
@@ -771,9 +771,9 @@ export function buildPopupHtml(f: FlightProperties, coords?: { lng: number; lat:
   const country = f.origin_country || 'N/A'
   const alt = formatAlt(f.altitude)
   const speed = formatSpeed(f.velocity)
-  const hdg = f.heading != null ? `${Math.round(f.heading)}°` : 'N/A'
+  const hdg = f.heading != null ? `${Math.round(f.heading)}Â°` : 'N/A'
   const milBadge = f.is_military
-    ? '<span style="color:#ef5350;font-weight:bold;font-size:11px;">⚠ MILITARY</span>'
+    ? '<span style="color:#ef5350;font-weight:bold;font-size:11px;">âš  MILITARY</span>'
     : ''
 
   // Brief button data
@@ -789,7 +789,7 @@ export function buildPopupHtml(f: FlightProperties, coords?: { lng: number; lat:
   return `
     <div style="font-family:system-ui;color:#e0e0e0;background:#1e1e1e;padding:8px;font-size:13px;line-height:1.5;">
       <div style="font-size:15px;font-weight:700;margin-bottom:2px;">${callsign}</div>
-      <div style="font-size:11px;color:#9e9e9e;margin-bottom:4px;">ICAO: ${(f.icao24 ?? '').toUpperCase()} · ${typeLabel} · ${country}</div>
+      <div style="font-size:11px;color:#9e9e9e;margin-bottom:4px;">ICAO: ${(f.icao24 ?? '').toUpperCase()} Â· ${typeLabel} Â· ${country}</div>
       ${milBadge}
       <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;">
         <tr><td style="color:#9e9e9e;">Alt</td><td style="text-align:right;">${alt}</td></tr>
@@ -799,7 +799,7 @@ export function buildPopupHtml(f: FlightProperties, coords?: { lng: number; lat:
       <div style="margin-top:8px;border-top:1px solid #333;padding-top:6px">
         <button class="brief-btn" data-type="aircraft" data-brief="${briefData}"
                 style="background:#2563eb;color:white;border:none;border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer;width:100%">
-          🔍 Generate Brief
+          ðŸ” Generate Brief
         </button>
       </div>
     </div>
