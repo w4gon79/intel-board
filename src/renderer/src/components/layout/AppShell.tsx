@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react'
-import maplibregl from 'maplibre-gl'
+﻿import { useState, useCallback, useEffect } from 'react'
+import * as maplibregl from 'maplibre-gl'
 import { AiAssistantStrip } from './AiAssistantStrip'
 import { HeaderBar } from './HeaderBar'
 import { IntelFeedPanel } from './IntelFeedPanel'
@@ -42,7 +42,7 @@ export function AppShell(): React.JSX.Element {
   const closeAbout = useCallback(() => setAboutOpen(false), [])
 
   /** Export the map viewport as a PNG via Electron's native capturePage().
-   *  No canvas.toDataURL() needed — the main process takes an OS-level
+   *  No canvas.toDataURL() needed â€” the main process takes an OS-level
    *  screenshot which reliably captures WebGL content. */
   const handleExportMap = useCallback(async () => {
     const maps = ((window as unknown as Record<string, unknown>).__maps || []) as Array<{
@@ -100,7 +100,7 @@ export function AppShell(): React.JSX.Element {
         const annotations = await window.api.annotations.list()
         annotationCount = annotations.filter((a: { visible: boolean }) => a.visible).length
       } catch {
-        /* ignore — annotations API may not be available */
+        /* ignore â€” annotations API may not be available */
       }
 
       // Get visible layers list
@@ -177,12 +177,12 @@ export function AppShell(): React.JSX.Element {
                 : 'text-zinc-500'
             }`}
           >
-            {tab === 'map' ? '🗺 Map' : tab === 'intel' ? '📋 Intel' : '💬 AI'}
+            {tab === 'map' ? 'ðŸ—º Map' : tab === 'intel' ? 'ðŸ“‹ Intel' : 'ðŸ’¬ AI'}
           </button>
         ))}
       </div>
 
-      {/* Desktop layout — hidden on mobile */}
+      {/* Desktop layout â€” hidden on mobile */}
       <div className="hidden lg:flex flex-col gap-2 p-2 xl:flex-row xl:flex-1 xl:min-h-0 xl:overflow-y-hidden">
         <section
           className="flex min-h-0 min-w-0 flex-col gap-2 lg:flex-row h-[50vh] xl:flex-1 xl:h-auto"
@@ -196,7 +196,7 @@ export function AppShell(): React.JSX.Element {
         <IntelFeedPanel />
       </div>
 
-      {/* Mobile layout — visible only on mobile */}
+      {/* Mobile layout â€” visible only on mobile */}
       <div className="relative flex-1 min-h-0 lg:hidden">
         <div className={`absolute inset-0 flex flex-col min-h-0 ${mobileTab === 'map' ? '' : 'hidden'}`}>
           <LayerControls layers={layers} onToggle={handleToggleLayer} />
@@ -212,7 +212,7 @@ export function AppShell(): React.JSX.Element {
         </div>
       </div>
 
-      {/* Desktop AiAssistantStrip — hidden on mobile */}
+      {/* Desktop AiAssistantStrip â€” hidden on mobile */}
       <div className="hidden lg:block">
         <AiAssistantStrip />
       </div>

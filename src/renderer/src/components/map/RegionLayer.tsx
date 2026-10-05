@@ -1,11 +1,11 @@
-/**
- * RegionLayer — renders broad geographic region boxes.
+﻿/**
+ * RegionLayer â€” renders broad geographic region boxes.
  * Separated from TransitCorridorLayer to prevent click overlap.
- * Toggle: Layer controls → "Region Areas" or Settings → "Show Region Areas"
+ * Toggle: Layer controls â†’ "Region Areas" or Settings â†’ "Show Region Areas"
  */
 
 import { useEffect, useRef } from 'react'
-import maplibregl from 'maplibre-gl'
+import * as maplibregl from 'maplibre-gl'
 import { REGION_AREAS } from '../../../../shared/regions'
 import {
   ALL_CIV_LAYER_IDS,
@@ -110,7 +110,7 @@ export function RegionLayer({ map, visible }: RegionLayerProps): React.JSX.Eleme
         }
       })
 
-      // Click handler — simple popup, no "Generate Brief"
+      // Click handler â€” simple popup, no "Generate Brief"
       // Check if any clickable markers are at this point first; if so, let UnifiedMapPopup handle it.
       const CLICKABLE_MARKER_LAYERS = [
         ...ALL_CIV_LAYER_IDS,
@@ -147,7 +147,7 @@ export function RegionLayer({ map, visible }: RegionLayerProps): React.JSX.Eleme
               `<div style="font-family:system-ui;color:#e0e0e0;background:#1e1e1e;padding:8px;font-size:13px;">` +
                 `<div style="font-size:14px;font-weight:700;color:#14b8a6;">${name}</div>` +
                 `<div style="font-size:11px;color:#a1a1aa;margin-top:2px;">Region Area</div>` +
-                `<div style="font-size:10px;color:#71717a;margin-top:4px;">${region.minLat.toFixed(1)}°-${region.maxLat.toFixed(1)}°N, ${region.minLon.toFixed(1)}°-${region.maxLon.toFixed(1)}°E</div>` +
+                `<div style="font-size:10px;color:#71717a;margin-top:4px;">${region.minLat.toFixed(1)}Â°-${region.maxLat.toFixed(1)}Â°N, ${region.minLon.toFixed(1)}Â°-${region.maxLon.toFixed(1)}Â°E</div>` +
                 `</div>`
             )
             .addTo(map)

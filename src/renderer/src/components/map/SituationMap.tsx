@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
-import maplibregl from 'maplibre-gl'
+﻿import { useEffect, useRef, useState, useCallback } from 'react'
+import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-// mapBrief global is removed – handlers are stored per-map instance
+// mapBrief global is removed â€“ handlers are stored per-map instance
 import ConflictZoneLayer from './ConflictZoneLayer'
 import FlightLayer from './FlightLayer'
 import ShipLayer from './ShipLayer'
@@ -165,7 +165,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
     }
   }, [])
 
-  // ── Inject spinner animation CSS once ──
+  // â”€â”€ Inject spinner animation CSS once â”€â”€
   useEffect(() => {
     if (!document.getElementById('brief-spinner-style')) {
       const style = document.createElement('style')
@@ -179,7 +179,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
     }
   }, [])
 
-  // ── Register the brief handler PER MAP INSTANCE (not global singleton) ──
+  // â”€â”€ Register the brief handler PER MAP INSTANCE (not global singleton) â”€â”€
   // Two SituationMaps render (desktop + mobile). A singleton handler would
   // be overwritten by whichever mounts last, pointing at the wrong map.
   useEffect(() => {
@@ -230,19 +230,19 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
           // Replace loading with actual brief
           briefPopupRef.current.setHTML(`
             <div style="font-size:12px;max-height:300px;overflow-y:auto;line-height:1.5;color:#e4e4e7">
-              <div style="font-weight:bold;margin-bottom:6px;color:#60a5fa">🔍 Intelligence Brief</div>
+              <div style="font-weight:bold;margin-bottom:6px;color:#60a5fa">ðŸ” Intelligence Brief</div>
               ${result.answer.replace(/\n/g, '<br/>')}
             </div>
           `)
         } else {
           briefPopupRef.current.setHTML(`
-            <div style="font-size:12px;color:#f87171;padding:4px 0">❌ ${result.answer}</div>
+            <div style="font-size:12px;color:#f87171;padding:4px 0">âŒ ${result.answer}</div>
           `)
         }
       } catch (err) {
         console.error('[SituationMap] Brief failed:', err)
         briefPopupRef.current.setHTML(`
-          <div style="font-size:12px;color:#f87171;padding:4px 0">❌ Brief generation failed. Try again.</div>
+          <div style="font-size:12px;color:#f87171;padding:4px 0">âŒ Brief generation failed. Try again.</div>
         `)
       }
     }
@@ -313,7 +313,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
     const interval = setInterval(refreshSettings, 10_000)
 
     const handleSettingsChanged = (): void => {
-      console.log('[SituationMap] Settings changed event — refreshing')
+      console.log('[SituationMap] Settings changed event â€” refreshing')
       refreshSettings()
     }
     window.addEventListener('settings-changed', handleSettingsChanged)
@@ -326,7 +326,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
 
   return (
     <div className="relative z-50 h-full min-h-[240px] w-full min-w-0">
-      {/* ── Brief popup styling ── */}
+      {/* â”€â”€ Brief popup styling â”€â”€ */}
       <style>{`
         .brief-popup .maplibregl-popup-content {
           background: #18181b;
@@ -338,7 +338,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
           opacity: 0.8;
         }
       `}</style>
-      {/* ── Map overlay controls (top-left) ── */}
+      {/* â”€â”€ Map overlay controls (top-left) â”€â”€ */}
       {mapReady && (
         <div className="absolute left-2.5 top-2.5 z-10 flex items-center gap-1.5 export-exclude">
           <select
@@ -361,7 +361,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
       >
         {cursorCoords && (
           <div className="absolute bottom-2 left-2 z-10 rounded bg-zinc-900/80 px-2 py-1 text-[10px] text-zinc-400 backdrop-blur-sm font-mono pointer-events-none export-exclude">
-            {Math.abs(cursorCoords.lat).toFixed(2)}°{cursorCoords.lat >= 0 ? 'N' : 'S'}, {Math.abs(cursorCoords.lng).toFixed(2)}°{cursorCoords.lng >= 0 ? 'E' : 'W'}
+            {Math.abs(cursorCoords.lat).toFixed(2)}Â°{cursorCoords.lat >= 0 ? 'N' : 'S'}, {Math.abs(cursorCoords.lng).toFixed(2)}Â°{cursorCoords.lng >= 0 ? 'E' : 'W'}
           </div>
         )}
       </div>
@@ -402,7 +402,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
         <AlertZoneLayer map={mapRef.current} />
       )}
 
-      {/* Tactical Overlay — Annotations */}
+      {/* Tactical Overlay â€” Annotations */}
       {mapReady && mapRef.current && (
         <TacticalOverlayLayer
           map={mapRef.current}
