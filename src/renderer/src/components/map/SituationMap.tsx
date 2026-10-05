@@ -1,7 +1,7 @@
 ﻿import { useEffect, useRef, useState, useCallback } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-// mapBrief global is removed â€“ handlers are stored per-map instance
+// mapBrief global is removed “ handlers are stored per-map instance
 import ConflictZoneLayer from './ConflictZoneLayer'
 import FlightLayer from './FlightLayer'
 import ShipLayer from './ShipLayer'
@@ -313,7 +313,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
     const interval = setInterval(refreshSettings, 10_000)
 
     const handleSettingsChanged = (): void => {
-      console.log('[SituationMap] Settings changed event â€” refreshing')
+      console.log('[SituationMap] Settings changed event ” refreshing')
       refreshSettings()
     }
     window.addEventListener('settings-changed', handleSettingsChanged)
@@ -402,7 +402,7 @@ export function SituationMap({ layers }: SituationMapProps): React.JSX.Element {
         <AlertZoneLayer map={mapRef.current} />
       )}
 
-      {/* Tactical Overlay â€” Annotations */}
+      {/* Tactical Overlay ” Annotations */}
       {mapReady && mapRef.current && (
         <TacticalOverlayLayer
           map={mapRef.current}

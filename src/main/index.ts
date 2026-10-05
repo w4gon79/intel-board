@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, dialog, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -49,6 +49,29 @@ import { startEconomicPolling, stopEconomicPolling } from './services/economicSe
 import { remoteServer } from './services/remote/httpServer'
 import { loadSettings } from './ipc/settings.handlers'
 import { reloadConfigFromSettings } from './utils/config'
+
+// ── EPIPE crash guard ──
+// The app logs heavily to stdout. When launched from a terminal/pipe that
+// dies, every console.log throws EPIPE and Electron shows a crash dialog for
+// an error that is purely cosmetic. Swallow EPIPE on the streams and in the
+// process-wide handler; everything else still surfaces.
+process.stdout?.on?.('error', (err: NodeJS.ErrnoException): void => {
+  if (err.code === 'EPIPE') return
+  throw err
+})
+process.stderr?.on?.('error', (err: NodeJS.ErrnoException): void => {
+  if (err.code === 'EPIPE') return
+  throw err
+})
+process.on('uncaughtException', (err: NodeJS.ErrnoException): void => {
+  if (err.code === 'EPIPE') return // broken stdout pipe; safe to ignore
+  console.error('[main] Uncaught exception:', err)
+  dialog.showErrorBox(
+    'Intel Board Error',
+    `An unexpected error occurred and the application must close.\n\n${err.stack || err.message}`
+  )
+  process.exit(1)
+})
 
 function createWindow(): void {
   // Create the browser window.
