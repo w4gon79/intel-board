@@ -10,17 +10,17 @@ interface DatabaseStatus {
 interface Window {
   electron: import('@electron-toolkit/preload').ElectronAPI
   api: {
-    // â”€â”€ Database â”€â”€
+    // ── Database ──
     db: {
       getStatus: () => Promise<DatabaseStatus>
     }
 
-    // â”€â”€ Vector Store â”€â”€
+    // ── Vector Store ──
     vectordb: {
       getStatus: () => Promise<{ connected: boolean; collections: string[] }>
     }
 
-    // â”€â”€ Ingestion â”€â”€
+    // ── Ingestion ──
     ingestion: {
       start: () => Promise<{ success: boolean }>
       stop: () => Promise<{ success: boolean }>
@@ -29,7 +29,7 @@ interface Window {
       search: (query: string) => Promise<unknown>
     }
 
-    // â”€â”€ Articles â”€â”€
+    // ── Articles ──
     articles: {
       getAll: (limit?: number, offset?: number) => Promise<unknown[]>
       getById: (id: string) => Promise<unknown>
@@ -39,7 +39,7 @@ interface Window {
       getCount: () => Promise<number>
     }
 
-    // â”€â”€ Intel Items â”€â”€
+    // ── Intel Items ──
     intel: {
       getRecent: (limit?: number, offset?: number) => Promise<SharedTypes['IntelItem']>
       getCount: () => Promise<number>
@@ -49,13 +49,13 @@ interface Window {
       deleteByIds: (ids: string[]) => Promise<{ success: boolean; deleted?: number }>
     }
 
-    // â”€â”€ Anomalies â”€â”€
+    // ── Anomalies ──
     anomalies: {
       getActive: (limit?: number) => Promise<SharedTypes['Anomaly'][]>
       getCount: () => Promise<number>
     }
 
-    // â”€â”€ Predictions â”€â”€
+    // ── Predictions ──
     predictions: {
       getUnresolved: (limit?: number) => Promise<SharedTypes['Prediction'][]>
       getWithReviews: (limit?: number) => Promise<unknown[]>
@@ -70,7 +70,7 @@ interface Window {
       getReviewStats: () => Promise<unknown>
     }
 
-    // â”€â”€ RAG Pipeline â”€â”€
+    // ── RAG Pipeline ──
     rag: {
       query: (request: SharedTypes['RAGRequest']) => Promise<SharedTypes['RAGResponse']>
       quickAnalysis: (topic: string, region?: string) => Promise<unknown>
@@ -78,7 +78,7 @@ interface Window {
       status: () => Promise<{ ollamaRunning: boolean; embeddingModel: string }>
     }
 
-    // â”€â”€ AI Chat â”€â”€
+    // ── AI Chat ──
     ai: {
       chat: (message: string) => Promise<{
         id: number
@@ -104,7 +104,7 @@ interface Window {
       clearHistory: () => Promise<{ success: boolean; error?: string }>
     }
 
-    // â”€â”€ Settings â”€â”€
+    // ── Settings ──
     settings: {
       get: () => Promise<AppSettings>
       save: (settings: AppSettings) => Promise<{ success: boolean; error?: string }>
@@ -117,7 +117,7 @@ interface Window {
       testTranslation: (text: string, language: string) => Promise<{ ok: boolean; translation?: string; error?: string }>
     }
 
-    // â”€â”€ ADS-B â”€â”€
+    // ── ADS-B ──
     adsb: {
       getMarkers: () => Promise<unknown[]>
       getGeoJSON: () => Promise<unknown>
@@ -135,7 +135,7 @@ interface Window {
       onCredentialsError: (callback: (info: { message: string }) => void) => () => void
     }
 
-    // â”€â”€ Aircraft Identification (Phase 4A) â”€â”€
+    // ── Aircraft Identification (Phase 4A) ──
     aircraft: {
       /** Manually lookup an ICAO24 hex code (may trigger network call) */
       lookup: (icao24: string, callsign?: string) => Promise<{
@@ -161,7 +161,7 @@ interface Window {
       } | null>
     }
 
-    // â”€â”€ AIS â”€â”€
+    // ── AIS ──
     ais: {
       getMarkers: () => Promise<unknown[]>
       getGeoJSON: () => Promise<unknown>
@@ -177,7 +177,7 @@ interface Window {
       onFeedHealthUpdated: (callback: (health: { connected: boolean; lastMessageAgeMs: number; feedAlive: boolean }) => void) => () => void
     }
 
-    // â”€â”€ Global Fishing Watch (Phase 4I) â”€â”€
+    // ── Global Fishing Watch (Phase 4I) ──
     gfw: {
       /** Get latest GFW presence data for all choke points */
       getPresence: () => Promise<GfwPresenceRow[]>
@@ -189,7 +189,7 @@ interface Window {
       triggerPoll: () => Promise<{ success: boolean; error?: string }>
     }
 
-    // â”€â”€ Vessel Identification (Phase 4B) â”€â”€
+    // ── Vessel Identification (Phase 4B) ──
     vessel: {
       lookup: (mmsi: string, shipName?: string, shipType?: string) => Promise<{
         mmsi: string
@@ -217,7 +217,7 @@ interface Window {
       } | null>
     }
 
-    // â”€â”€ Social Media (Phase 5A) â”€â”€
+    // ── Social Media (Phase 5A) ──
     social: {
       getPosts: (limit?: number, source?: 'reddit' | 'bluesky', sourceDetail?: string) => Promise<unknown[]>
       getStats: () => Promise<{
@@ -230,7 +230,7 @@ interface Window {
       pollBlueSky: () => Promise<{ fetched: number; inserted: number }>
     }
 
-    // â”€â”€ Economic Monitoring (Phase 5B) â”€â”€
+    // ── Economic Monitoring (Phase 5B) ──
     economic: {
       poll: () => Promise<{ fetched: number; anomalies: number }>
       getIndicators: () => Promise<EconomicIndicator[]>
@@ -240,7 +240,7 @@ interface Window {
       stop: () => Promise<{ success: boolean }>
     }
 
-    // â”€â”€ Dynamic Conflict Zones â”€â”€
+    // ── Dynamic Conflict Zones ──
     zone: {
       list: () => Promise<unknown[]>
       detail: (id: string) => Promise<unknown>
@@ -248,7 +248,7 @@ interface Window {
       refresh: () => Promise<void>
     }
 
-    // â”€â”€ NOTAM (Military/Defense Airspace Restrictions) â”€â”€
+    // ── NOTAM (Military/Defense Airspace Restrictions) ──
     notam: {
       list: (limit?: number) => Promise<unknown[]>
       byZone: (zoneId: string) => Promise<unknown[]>
@@ -256,7 +256,7 @@ interface Window {
       status: () => Promise<{ running: boolean; lastPoll: string | null; activeCount: number; error: string | null }>
     }
 
-    // â”€â”€ Alert Rules (Phase 5A) â”€â”€
+    // ── Alert Rules (Phase 5A) ──
     alertRules: {
       list: () => Promise<unknown[]>
       create: (rule: Record<string, unknown>) => Promise<unknown>
@@ -265,7 +265,7 @@ interface Window {
       toggle: (id: string) => Promise<unknown>
     }
 
-    // â”€â”€ Notifications â”€â”€
+    // ── Notifications ──
     notifications: {
       sendTest: () => Promise<{
         success: boolean
@@ -274,7 +274,7 @@ interface Window {
       status: () => Promise<Record<string, { enabled: boolean; configured: boolean }>>
     }
 
-    // â”€â”€ Export â”€â”€
+    // ── Export ──
     export: {
       markdown: (options: { tier?: string | null; hoursBack?: number | null }) => Promise<{
         success: boolean
@@ -308,7 +308,7 @@ interface Window {
       }>
     }
 
-    // â”€â”€ Chat Export â”€â”€
+    // ── Chat Export ──
     chatExport: {
       messageMarkdown: (params: {
         content: string
@@ -344,7 +344,7 @@ interface Window {
       conversationPdf: () => Promise<{ success: boolean; filePath?: string; error?: string }>
     }
 
-    // â”€â”€ Map Annotations (Tactical Overlay) â”€â”€
+    // ── Map Annotations (Tactical Overlay) ──
     annotations: {
       list: (layer?: string) => Promise<SharedTypes['MapAnnotation'][]>
       create: (data: Omit<SharedTypes['MapAnnotation'], 'id' | 'created_at' | 'updated_at'>) => Promise<SharedTypes['MapAnnotation']>
