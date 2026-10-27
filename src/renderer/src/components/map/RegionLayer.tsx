@@ -17,6 +17,7 @@ import {
   FLIGHT_UNCLUSTERED_LAYER_ID,
   FLIGHT_MILITARY_LAYER_ID
 } from './FlightLayer'
+import { GFW_CLICKABLE_LAYER_IDS } from './GfwLayer'
 
 const SOURCE_ID = 'regions'
 const FILL_LAYER_ID = 'regions-fill'
@@ -118,7 +119,8 @@ export function RegionLayer({ map, visible }: RegionLayerProps): React.JSX.Eleme
         CARRIER_MARKER_LAYER_ID,
         INTEL_LAYER_ID,
         FLIGHT_UNCLUSTERED_LAYER_ID,
-        FLIGHT_MILITARY_LAYER_ID
+        FLIGHT_MILITARY_LAYER_ID,
+        ...GFW_CLICKABLE_LAYER_IDS
       ]
 
       map.on('click', FILL_LAYER_ID, (e) => {

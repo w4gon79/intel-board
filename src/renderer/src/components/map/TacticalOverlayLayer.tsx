@@ -732,7 +732,7 @@ export function TacticalOverlayLayer({
           color: selectedColor,
           label: null,
           description: null,
-          icon: type === 'marker' ? 'ðŸ“' : null,
+          icon: type === 'marker' ? '📍' : null,
           layer: activeLayer || 'default',
           visible: true
         })

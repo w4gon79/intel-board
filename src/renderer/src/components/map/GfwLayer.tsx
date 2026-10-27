@@ -21,6 +21,9 @@ const SAR_LAYER_ID = 'gfw-sar-diamonds'
 const SAR_LABEL_LAYER_ID = 'gfw-sar-labels'
 
 const ALL_LAYER_IDS = [PRESENCE_LAYER_ID, PRESENCE_LABEL_LAYER_ID, SAR_LAYER_ID, SAR_LABEL_LAYER_ID]
+
+// Clickable GFW layers, exported so overlay layers (corridors/regions) can defer clicks on GFW features
+export const GFW_CLICKABLE_LAYER_IDS = [PRESENCE_LAYER_ID, PRESENCE_LABEL_LAYER_ID, SAR_LAYER_ID, SAR_LABEL_LAYER_ID]
 const ALL_SOURCE_IDS = [PRESENCE_SOURCE_ID, SAR_SOURCE_ID]
 
 // ─── Types ───────────────────────────────────────────────────
