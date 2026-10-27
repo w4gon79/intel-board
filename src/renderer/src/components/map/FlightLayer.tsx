@@ -799,7 +799,7 @@ export function buildPopupHtml(f: FlightProperties, coords?: { lng: number; lat:
       <div style="margin-top:8px;border-top:1px solid #333;padding-top:6px">
         <button class="brief-btn" data-type="aircraft" data-brief="${briefData}"
                 style="background:#2563eb;color:white;border:none;border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer;width:100%">
-          ðŸ” Generate Brief
+          🔍 Generate Brief
         </button>
       </div>
     </div>

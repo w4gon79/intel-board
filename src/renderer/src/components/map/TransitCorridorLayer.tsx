@@ -6,6 +6,17 @@
 import { useEffect, useRef } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import { TRANSIT_CORRIDORS } from '../../../../shared/regions'
+import {
+  ALL_CIV_LAYER_IDS,
+  SHIP_MILITARY_LAYER_ID
+} from './ShipLayer'
+import { CARRIER_MARKER_LAYER_ID } from './CarrierLayer'
+import { INTEL_LAYER_ID } from './IntelLayer'
+import {
+  FLIGHT_UNCLUSTERED_LAYER_ID,
+  FLIGHT_MILITARY_LAYER_ID
+} from './FlightLayer'
+import { GFW_CLICKABLE_LAYER_IDS } from './GfwLayer'
 
 const SOURCE_ID = 'transit-corridors'
 const FILL_LAYER_ID = 'transit-corridors-fill'
@@ -104,7 +115,22 @@ export function TransitCorridorLayer({ map, visible }: TransitCorridorLayerProps
       })
 
       // Click popup with Generate Brief button
+      // If clickable markers/features exist at this point, defer to their popup handlers
+      const CLICKABLE_MARKER_LAYERS = [
+        ...ALL_CIV_LAYER_IDS,
+        SHIP_MILITARY_LAYER_ID,
+        CARRIER_MARKER_LAYER_ID,
+        INTEL_LAYER_ID,
+        FLIGHT_UNCLUSTERED_LAYER_ID,
+        FLIGHT_MILITARY_LAYER_ID,
+        ...GFW_CLICKABLE_LAYER_IDS
+      ]
       map.on('click', FILL_LAYER_ID, (e) => {
+        const clickableFeatures = map.queryRenderedFeatures(e.point, {
+          layers: CLICKABLE_MARKER_LAYERS
+        })
+        if (clickableFeatures.length > 0) return
+
         if (e.features && e.features.length > 0) {
           const feature = e.features[0]
           const name = (feature.properties as { name: string }).name
@@ -131,7 +157,7 @@ export function TransitCorridorLayer({ map, visible }: TransitCorridorLayerProps
                 `<div style="margin-top:8px;border-top:1px solid #333;padding-top:6px">` +
                 `<button class="chokepoint-brief-btn" data-type="chokepoint" data-brief="${briefData}" ` +
                 `style="background:#2563eb;color:white;border:none;border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer;width:100%">` +
-                `ðŸ” Generate Brief</button></div></div>`
+                `🔍 Generate Brief</button></div></div>`
             )
             .addTo(map)
 
