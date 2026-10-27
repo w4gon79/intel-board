@@ -1,5 +1,5 @@
 ﻿/**
- * UnifiedMapPopup â€“ Single unified click handler for all map layers.
+ * UnifiedMapPopup – Single unified click handler for all map layers.
  *
  * Instead of each layer managing its own click handlers and popups independently,
  * this component intercepts all map clicks, queries ALL layers at the click point,
@@ -35,7 +35,7 @@ import {
   type FlightProperties
 } from './FlightLayer'
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ───────────────────────────────────────────────────
 
 type FeatureType = 'ship' | 'csg' | 'intel' | 'flight'
 
@@ -45,7 +45,7 @@ interface TypedFeature {
   feature: maplibregl.MapGeoJSONFeature
 }
 
-// â”€â”€â”€ All clickable (non-cluster) layer IDs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── All clickable (non-cluster) layer IDs ───────────────────
 
 const CLICKABLE_LAYER_IDS: string[] = [
   ...ALL_CIV_LAYER_IDS,
@@ -56,17 +56,17 @@ const CLICKABLE_LAYER_IDS: string[] = [
   FLIGHT_MILITARY_LAYER_ID
 ]
 
-// â”€â”€â”€ Feature type icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Feature type icons ──────────────────────────────────────
 
 const TYPE_ICONS: Record<FeatureType, string> = {
-  ship: 'ðŸš¢',
-  csg: 'âš“',
-  intel: 'ðŸ“Œ',
-  flight: 'âœˆï¸'
+  ship: '🚢',
+  csg: '⚓',
+  intel: '📌',
+  flight: '✈️'
 }
 
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ─────────────────────────────────────────────────
 
 function classifyFeature(f: maplibregl.MapGeoJSONFeature): FeatureType {
   const lid = f.layer?.id ?? ''
@@ -97,12 +97,12 @@ function getFeatureSubLabel(tf: TypedFeature): string {
     case 'ship':
       return (p.ship_type as string)?.toUpperCase() || 'Vessel'
     case 'csg':
-      return `${p.vessel_count ?? '?'} vessels Â· ${p.status ?? 'unknown'}`
+      return `${p.vessel_count ?? '?'} vessels · ${p.status ?? 'unknown'}`
     case 'intel':
-      return `${p.region ?? ''} Â· ${p.tier ?? ''}`
+      return `${p.region ?? ''} · ${p.tier ?? ''}`
     case 'flight': {
       const mil = p.is_military === 1 || p.is_military === true
-      return `${p.aircraft_type ?? 'Aircraft'}${mil ? ' Â· MILITARY' : ''}`
+      return `${p.aircraft_type ?? 'Aircraft'}${mil ? ' · MILITARY' : ''}`
     }
   }
 }
@@ -144,7 +144,7 @@ function buildDetailHtml(tf: TypedFeature): string {
   }
 }
 
-// â”€â”€â”€ Multi-feature popup HTML builder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Multi-feature popup HTML builder ────────────────────────
 
 function buildMultiPopupHtml(
   features: TypedFeature[],
@@ -192,13 +192,13 @@ function buildMultiPopupHtml(
   `
 }
 
-// â”€â”€â”€ Props â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Props ───────────────────────────────────────────────────
 
 interface UnifiedMapPopupProps {
   map: maplibregl.Map | null
 }
 
-// â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Component ───────────────────────────────────────────────
 
 export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JSX.Element {
   const popupRef = useRef<maplibregl.Popup | null>(null)
@@ -234,7 +234,7 @@ export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JS
         popupRef.current = null
       }
 
-      // No features â†’ remove popup and return
+      // No features → remove popup and return
       if (!allFeatures || allFeatures.length === 0) return
 
       // Classify features by type
@@ -244,7 +244,7 @@ export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JS
         feature: f
       }))
 
-      // â”€â”€ CSG proximity expansion â”€â”€
+      // ── CSG proximity expansion ──
       // Since CSG markers can overlap at low zoom, when clicking near ANY CSG
       // marker, find ALL CSG groups in the source within a radius and add them.
       // This ensures the tabbed popup shows all nearby groups.
@@ -288,7 +288,7 @@ export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JS
       const lngLat = e.lngLat.toArray() as [number, number]
 
       if (typedFeatures.length === 1) {
-        // â”€â”€ Single feature: show normal popup â”€â”€
+        // ── Single feature: show normal popup ──
         const tf = typedFeatures[0]
         const coords = getCoords(tf)
         const coordsObj = { lng: coords[0], lat: coords[1] }
@@ -315,7 +315,7 @@ export default function UnifiedMapPopup({ map }: UnifiedMapPopupProps): React.JS
 
         attachBriefListeners(popupRef.current)
       } else {
-        // â”€â”€ Multiple features: show unified popup â”€â”€
+        // ── Multiple features: show unified popup ──
         featuresRef.current = typedFeatures
         selectedRef.current = 0
 

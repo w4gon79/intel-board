@@ -1,5 +1,5 @@
 ﻿/**
- * TacticalOverlayLayer â€” Renders saved map annotations on the map.
+ * TacticalOverlayLayer — Renders saved map annotations on the map.
  * Supports marker, line, polygon, circle, and text annotation types.
  */
 
@@ -38,7 +38,7 @@ export function TacticalOverlayLayer({
   const previewLayerIds = useRef<string[]>([])
   const popupRef = useRef<maplibregl.Popup | null>(null)
 
-  // â”€â”€ Load annotations from DB â”€â”€
+  // ── Load annotations from DB ──
   const loadAnnotations = useCallback(async () => {
     try {
       if (window.api?.annotations?.list) {
@@ -54,7 +54,7 @@ export function TacticalOverlayLayer({
     loadAnnotations()
   }, [loadAnnotations])
 
-  // â”€â”€ Render annotations as map sources/layers â”€â”€
+  // ── Render annotations as map sources/layers ──
   useEffect(() => {
     if (!visible) {
       // Remove all tactical layers and source
@@ -344,7 +344,7 @@ export function TacticalOverlayLayer({
     }
   }
 
-  // â”€â”€ Handle click for selection â”€â”€
+  // ── Handle click for selection ──
   useEffect(() => {
     if (!visible) return
 
@@ -387,7 +387,7 @@ export function TacticalOverlayLayer({
     }
   }, [visible, annotations, activeTool])
 
-  // â”€â”€ Show popup for selected annotation â”€â”€
+  // ── Show popup for selected annotation ──
   function showPopup(annId: string, lngLat: maplibregl.LngLat): void {
     if (popupRef.current) {
       popupRef.current.remove()
@@ -410,7 +410,7 @@ export function TacticalOverlayLayer({
       .addTo(map)
   }
 
-  // â”€â”€ Handle delete â”€â”€
+  // ── Handle delete ──
   async function handleDelete(id: string): Promise<void> {
     try {
       if (window.api?.annotations?.delete) await window.api.annotations.delete(id)
@@ -425,7 +425,7 @@ export function TacticalOverlayLayer({
     }
   }
 
-  // â”€â”€ Handle save (from popup) â”€â”€
+  // ── Handle save (from popup) ──
   async function handleSave(id: string, updates: Partial<MapAnnotation>): Promise<void> {
     try {
       if (window.api?.annotations?.update) await window.api.annotations.update(id, updates)
@@ -435,7 +435,7 @@ export function TacticalOverlayLayer({
     }
   }
 
-  // â”€â”€ Drawing interaction â”€â”€
+  // ── Drawing interaction ──
   useEffect(() => {
     if (!activeTool || activeTool === 'eraser' || !visible) {
       map.getCanvas().style.cursor = ''
@@ -463,7 +463,7 @@ export function TacticalOverlayLayer({
       } else {
         const state = drawStateRef.current
         if (state.type === 'circle') {
-          // Second click = edge point â†’ create circle
+          // Second click = edge point → create circle
           const center = state.points[0]
           const radius = Math.sqrt(
             Math.pow(point[0] - center[0], 2) + Math.pow(point[1] - center[1], 2)
@@ -519,7 +519,7 @@ export function TacticalOverlayLayer({
     }
   }, [activeTool, visible, selectedColor, activeLayer])
 
-  // â”€â”€ Preview drawing â”€â”€
+  // ── Preview drawing ──
   function showPreview(points: [number, number][]): void {
     clearPreview()
     if (points.length < 1) return
@@ -701,7 +701,7 @@ export function TacticalOverlayLayer({
     }
   }
 
-  // â”€â”€ Create annotation via IPC â”€â”€
+  // ── Create annotation via IPC ──
   async function createAnnotation(type: AnnotationType, points: [number, number][]): Promise<void> {
     let coordinates: string
     switch (type) {
@@ -744,7 +744,7 @@ export function TacticalOverlayLayer({
     }
   }
 
-  // â”€â”€ Render popup for selected annotation â”€â”€
+  // ── Render popup for selected annotation ──
   const selectedAnnotation = annotations.find((a) => a.id === selectedId)
 
   return (
